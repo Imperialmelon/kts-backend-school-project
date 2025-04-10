@@ -25,19 +25,8 @@ class Database:
         self.engine: AsyncEngine | None = None
         self._db: type[DeclarativeBase] = BaseModel
         self.session: async_sessionmaker[AsyncSession] | None = None
-    
-    def make_db_url(self) -> str:
-        return str(f"postgresql+asyncpg://{self.app.config.database.user}:{self.app.config.database.password}@0.0.0.0/{self.app.config.database.database}")
 
     async def connect(self, *args: Any, **kwargs: Any) -> None:
-        print(URL.create(
-            drivername="postgresql+asyncpg",
-                username=self.app.config.database.user,
-                password=self.app.config.database.password,
-                host=self.app.config.database.host,
-                port=self.app.config.database.port,
-                database=self.app.config.database.database,
-            ))
         self.engine = create_async_engine(
             URL.create(
             drivername="postgresql+asyncpg",
@@ -48,6 +37,7 @@ class Database:
                 database=self.app.config.database.database,
             ), echo=True)
         self.session = async_sessionmaker(self.engine, class_=AsyncSession, expire_on_commit = False)
+        # тест подключения к бд
         try:
             async with self.session() as session:
                 result = await session.execute(text("SELECT * FROM t"))
