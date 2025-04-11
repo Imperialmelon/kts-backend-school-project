@@ -26,6 +26,7 @@ class TgApiAccessor(BaseAccessor):
     async def connect(self, app: "Application") -> None:
         self.offset = 0
         self.poller = Poller(app.store)
+        print('here')
         self.logger.info("start polling")
         self.poller.start()
 

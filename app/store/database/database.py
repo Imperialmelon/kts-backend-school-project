@@ -37,19 +37,6 @@ class Database:
                 database=self.app.config.database.database,
             ), echo=True)
         self.session = async_sessionmaker(self.engine, class_=AsyncSession, expire_on_commit = False)
-        # тест подключения к бд
-        try:
-            async with self.session() as session:
-                result = await session.execute(text("SELECT * FROM t"))
-                
-                rows = result.one()
-                print(rows)
-                
-
-    
-        except Exception as e:
-            print(f" smth went wrong: {e}")
-
         return
 
     async def disconnect(self, *args: Any, **kwargs: Any) -> None:

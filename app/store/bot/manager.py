@@ -7,9 +7,9 @@ if typing.TYPE_CHECKING:
 
 
 class BotManager:
-    def __init__(self, app: "Application"):
+    def __init__(self, app: "Application", bot):
         self.app = app
-        self.bot = None
+        self.bot = bot
         self.logger = getLogger("handler")
 
     async def handle_updates(self, updates: list[UpdateObj]):

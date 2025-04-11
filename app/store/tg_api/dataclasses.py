@@ -68,3 +68,5 @@ class SendMessageResponse:
 
     class Meta:
         unknown = EXCLUDE
+
+
