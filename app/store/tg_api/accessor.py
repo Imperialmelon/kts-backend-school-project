@@ -15,9 +15,8 @@ if typing.TYPE_CHECKING:
     from app.web.app import Application
 
 
-
 class TgApiAccessor(BaseAccessor):
-    def __init__(self, app: "Application", token: str,  *args, **kwargs):
+    def __init__(self, app: "Application", token: str, *args, **kwargs):
         super().__init__(app, *args, **kwargs)
         self.tg_client = TgClient(token)
         self.poller: Poller | None = None
@@ -26,7 +25,7 @@ class TgApiAccessor(BaseAccessor):
     async def connect(self, app: "Application") -> None:
         self.offset = 0
         self.poller = Poller(app.store)
-        print('here')
+        print("here")
         self.logger.info("start polling")
         self.poller.start()
 
@@ -35,7 +34,9 @@ class TgApiAccessor(BaseAccessor):
             await self.poller.stop()
 
     async def poll(self):
-        updates = await self.tg_client.get_updates_in_objects(offset=self.offset, timeout=25)
+        updates = await self.tg_client.get_updates_in_objects(
+            offset=self.offset, timeout=25
+        )
         print(updates)
         for update in updates.result:
             self.offset = update.update_id + 1

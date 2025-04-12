@@ -7,15 +7,20 @@ if typing.TYPE_CHECKING:
 
 
 class BotManager:
-    def __init__(self, app: "Application", bot):
+    def __init__(self, app: "Application"):
         self.app = app
-        self.bot = bot
+        self.bot = None
         self.logger = getLogger("handler")
 
     async def handle_updates(self, updates: list[UpdateObj]):
-        
         for update in updates.result:
             if update.message is not None:
-                await self.app.store.Tg_api.tg_client.send_message(chat_id = update.message.chat.id, text = f"{update.message.text}" )
+                await self.app.store.Tg_api.tg_client.send_message(
+                    chat_id=update.message.chat.id,
+                    text=f"{update.message.text}",
+                )
             elif update.edited_message is not None:
-                await self.app.store.Tg_api.tg_client.send_message(chat_id = update.edited_message.chat.id, text = f"{update.edited_message.text}" )
+                await self.app.store.Tg_api.tg_client.send_message(
+                    chat_id=update.edited_message.chat.id,
+                    text=f"{update.edited_message.text}",
+                )

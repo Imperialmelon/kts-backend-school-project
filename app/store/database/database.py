@@ -17,7 +17,6 @@ if TYPE_CHECKING:
     from app.web.app import Application
 
 
-
 class Database:
     def __init__(self, app: "Application") -> None:
         self.app = app
@@ -29,16 +28,20 @@ class Database:
     async def connect(self, *args: Any, **kwargs: Any) -> None:
         self.engine = create_async_engine(
             URL.create(
-            drivername="postgresql+asyncpg",
+                drivername="postgresql+asyncpg",
                 username=self.app.config.database.user,
                 password=self.app.config.database.password,
                 host=self.app.config.database.host,
                 port=self.app.config.database.port,
                 database=self.app.config.database.database,
-            ), echo=True)
-        self.session = async_sessionmaker(self.engine, class_=AsyncSession, expire_on_commit = False)
+            ),
+            echo=True,
+        )
+        self.session = async_sessionmaker(
+            self.engine, class_=AsyncSession, expire_on_commit=False
+        )
         return
 
     async def disconnect(self, *args: Any, **kwargs: Any) -> None:
         await self.engine.dispose()
-        return 
+        return

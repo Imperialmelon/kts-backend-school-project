@@ -1,6 +1,6 @@
-#from .store import Store
+# from .store import Store
 
-#__all__ = ("Store",)
+# __all__ = ("Store",)
 import typing
 import os
 
@@ -14,7 +14,8 @@ class Store:
     def __init__(self, app: "Application"):
         from app.store.bot.manager import BotManager
         from app.store.tg_api.accessor import TgApiAccessor
-        self.Tg_api = TgApiAccessor(app, token = app.config.bot.token)
+
+        self.Tg_api = TgApiAccessor(app, token=app.config.bot.token)
         self.bots_manager = BotManager(app)
 
 

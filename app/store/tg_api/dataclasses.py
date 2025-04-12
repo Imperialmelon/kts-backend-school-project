@@ -4,6 +4,7 @@ from typing import ClassVar, Type, List, Optional
 from marshmallow_dataclass import dataclass
 from marshmallow import Schema, EXCLUDE
 
+
 @dataclass
 class Chat:
     id: int
@@ -16,6 +17,7 @@ class Chat:
     class Meta:
         unknown = EXCLUDE
 
+
 @dataclass
 class MessageFrom:
     id: int
@@ -27,6 +29,7 @@ class MessageFrom:
     class Meta:
         unknown = EXCLUDE
 
+
 @dataclass
 class Message:
     message_id: int
@@ -37,6 +40,7 @@ class Message:
 
     class Meta:
         unknown = EXCLUDE
+
 
 @dataclass
 class UpdateObj:
@@ -68,5 +72,3 @@ class SendMessageResponse:
 
     class Meta:
         unknown = EXCLUDE
-
-

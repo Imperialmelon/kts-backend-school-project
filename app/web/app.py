@@ -22,7 +22,7 @@ class Application(AiohttpApplication):
 
 
 class Request(AiohttpRequest):
-    #admin: AdminModel | None = None
+    # admin: AdminModel | None = None
 
     @property
     def app(self) -> Application:
