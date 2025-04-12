@@ -15,16 +15,14 @@ class BotConfig:
 @dataclass
 class DatabaseConfig:
     host: str = "localhost"
-    port: int = 5432
+    port: int = 5429
     user: str = "postgres"
     password: str = "postgres"
-    database: str = "project"
+    database: str = "postgres"
 
 
 @dataclass
 class Config:
-    # admin: AdminConfig
-    # session: SessionConfig | None = None
     bot: BotConfig | None = None
     database: DatabaseConfig | None = None
 
