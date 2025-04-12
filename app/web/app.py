@@ -18,7 +18,6 @@ class Application(AiohttpApplication):
 
 
 class Request(AiohttpRequest):
-
     @property
     def app(self) -> Application:
         return super().app()

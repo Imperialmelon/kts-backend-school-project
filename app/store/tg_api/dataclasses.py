@@ -13,6 +13,7 @@ class Chat:
     last_name: str | None = None
     username: str | None = None
     title: str | None = None
+
     class Meta:
         unknown = EXCLUDE
 
@@ -21,7 +22,7 @@ class Chat:
 class MessageFrom:
     id: int
     first_name: str
-    username: str  
+    username: str
     last_name: str | None = None
     chat: Chat | None = None
 

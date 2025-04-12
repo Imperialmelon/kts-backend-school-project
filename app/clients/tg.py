@@ -1,4 +1,3 @@
-
 import aiohttp
 
 from app.store.tg_api.dataclasses import GetUpdatesResponse, SendMessageResponse
