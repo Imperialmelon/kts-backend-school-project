@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING, Any
-import os
-from sqlalchemy import text
 
+from sqlalchemy import URL
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -9,7 +8,6 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import URL, inspect
 
 from app.store.database.models import BaseModel
 
@@ -40,8 +38,6 @@ class Database:
         self.session = async_sessionmaker(
             self.engine, class_=AsyncSession, expire_on_commit=False
         )
-        return
 
     async def disconnect(self, *args: Any, **kwargs: Any) -> None:
         await self.engine.dispose()
-        return

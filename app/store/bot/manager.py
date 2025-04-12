@@ -1,5 +1,6 @@
 import typing
 from logging import getLogger
+
 from app.store.tg_api.dataclasses import UpdateObj
 
 if typing.TYPE_CHECKING:

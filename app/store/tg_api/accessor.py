@@ -1,13 +1,6 @@
-import random
 import typing
-import os
-from urllib.parse import urlencode, urljoin
-
-from aiohttp import TCPConnector
-from aiohttp.client import ClientSession
 
 from app.base.base_accessor import BaseAccessor
-from app.store.tg_api.dataclasses import *
 from app.clients.tg import TgClient
 from app.store.tg_api.poller import Poller
 
@@ -25,7 +18,6 @@ class TgApiAccessor(BaseAccessor):
     async def connect(self, app: "Application") -> None:
         self.offset = 0
         self.poller = Poller(app.store)
-        print("here")
         self.logger.info("start polling")
         self.poller.start()
 
@@ -37,7 +29,6 @@ class TgApiAccessor(BaseAccessor):
         updates = await self.tg_client.get_updates_in_objects(
             offset=self.offset, timeout=25
         )
-        print(updates)
         for update in updates.result:
             self.offset = update.update_id + 1
         await self.app.store.bots_manager.handle_updates(updates)

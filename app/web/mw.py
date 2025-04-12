@@ -4,9 +4,9 @@ import typing
 from aiohttp.web_exceptions import HTTPException, HTTPUnprocessableEntity
 from aiohttp.web_middlewares import middleware
 from aiohttp_apispec import validation_middleware
+from sqlalchemy.exc import NoResultFound
 
 from app.web.utils import error_json_response
-from sqlalchemy.exc import NoResultFound
 
 if typing.TYPE_CHECKING:
     from app.web.app import Application, Request
