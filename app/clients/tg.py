@@ -1,12 +1,11 @@
 import aiohttp
 
+from app.clients.methods import TgMethods
 from app.store.tg_api.dataclasses import (
     GetDataResponse,
     GetUpdatesResponse,
     SendMessageResponse,
 )
-
-from app.clients.methods import TgMethods
 
 
 class TgClient:
