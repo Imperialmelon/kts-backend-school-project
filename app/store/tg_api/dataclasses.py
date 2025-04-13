@@ -72,3 +72,26 @@ class SendMessageResponse:
 
     class Meta:
         unknown = EXCLUDE
+
+
+@dataclass
+class BotDataSchema:
+    id: int
+    is_bot: bool
+    first_name: str
+    username: str
+    can_join_groups: bool
+    can_read_all_group_messages: bool
+    supports_inline_queries: bool
+    can_connect_to_business: bool
+    has_main_web_app: bool
+
+
+@dataclass
+class GetDataResponse:
+    ok: bool
+    result: BotDataSchema
+    Schema: ClassVar[type[Schema]] = Schema
+
+    class Meta:
+        unknown = EXCLUDE

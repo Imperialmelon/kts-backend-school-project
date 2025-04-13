@@ -1,17 +1,26 @@
 import asyncio
 from logging.config import fileConfig
 from app.store.database.models import BaseModel
-
+import yaml
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
-
+from pathlib import Path
 from alembic import context
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+config_path = Path(__file__).parent.parent / 'config.yml'
+with open(config_path) as f:
+    yaml_config = yaml.safe_load(f)
+    db_config = yaml_config['database']
+config.set_main_option(
+    'sqlalchemy.url',
+    f"postgresql+asyncpg://{db_config['user']}:{db_config['password']}@"
+    f"{db_config['host']}:{db_config['port']/{db_config['database']}}"
 
+)
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:

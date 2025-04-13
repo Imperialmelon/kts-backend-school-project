@@ -1,5 +1,5 @@
 import typing
-from logging import getLogger
+from logging import Logger, getLogger
 
 from app.store.tg_api.dataclasses import UpdateObj
 
@@ -9,19 +9,19 @@ if typing.TYPE_CHECKING:
 
 class BotManager:
     def __init__(self, app: "Application"):
-        self.app = app
-        self.bot = None
-        self.logger = getLogger("handler")
+        self.app: "Application" = app
+        self.logger: Logger = getLogger("handler")
 
     async def handle_updates(self, updates: list[UpdateObj]):
         for update in updates.result:
             if update.message is not None:
-                await self.app.store.Tg_api.tg_client.send_message(
+                await self.app.store.tg_api.tg_client.send_message(
                     chat_id=update.message.chat.id,
                     text=f"{update.message.text}",
                 )
+
             elif update.edited_message is not None:
-                await self.app.store.Tg_api.tg_client.send_message(
+                await self.app.store.tg_api.tg_client.send_message(
                     chat_id=update.edited_message.chat.id,
                     text=f"{update.edited_message.text}",
                 )

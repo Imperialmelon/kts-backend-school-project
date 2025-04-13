@@ -29,7 +29,7 @@ async def error_handling_middleware(request: "Request", handler):
         response = await handler(request)
     except NoResultFound as e:
         return error_json_response(
-            http_status=404,
+            http_status=HTTP_ERROR_CODES[404],
             status="not_found",
             message=str(e),
         )
