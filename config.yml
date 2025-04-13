@@ -1,0 +1,11 @@
+admin:
+  email: admin@admin.com
+  password: admin
+database:
+  host: localhost
+  port: 5429
+  user: postgres
+  password: postgres
+  database: postgres
+bot:
+  token: 7790432200:AAHBLqsetdE4q-qQHXQzdLEDKC4ISl0frYY
