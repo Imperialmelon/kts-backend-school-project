@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class TgMethods(Enum):
+class TgMethods(StrEnum):
     GET_ME = "getMe"
     GET_UPDATES = "getUpdates"
     SEND_MESSAGE = "sendMessage"

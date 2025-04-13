@@ -6,7 +6,7 @@ from app.store.tg_api.dataclasses import (
     SendMessageResponse,
 )
 
-from .methods import TgMethods
+from app.clients.methods import TgMethods
 
 
 class TgClient:
