@@ -57,9 +57,10 @@ class BotManager:
                     await session.flush()
                     await session.refresh(chat)
                 chat_state = chat.state
-            
-            await self._state_processor(message.text, chat_state, 
-                                        chat_id, session)
+
+            await self._state_processor(
+                message.text, chat_state, chat_id, session
+            )
 
     async def _state_processor(
         self,
@@ -69,6 +70,5 @@ class BotManager:
         session: async_sessionmaker[AsyncSession],
     ):
         await ChatProcessor.processors[chat_state](
-                message, chat_id, session, self.app
-            )
- 
+            message, chat_id, session, self.app
+        )
