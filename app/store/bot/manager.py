@@ -58,7 +58,8 @@ class BotManager:
                     await session.refresh(chat)
                 chat_state = chat.state
             
-            await self._state_processor(message.text, chat_state, chat_id, session)
+            await self._state_processor(message.text, chat_state, 
+                                        chat_id, session)
 
     async def _state_processor(
         self,

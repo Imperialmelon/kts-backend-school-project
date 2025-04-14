@@ -12,7 +12,6 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, relationship
 
 
-
 class BaseModel(DeclarativeBase):
     pass
 
