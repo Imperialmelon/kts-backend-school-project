@@ -1,10 +1,14 @@
 from enum import StrEnum
+import typing
 
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
 )
+
+if typing.TYPE_CHECKING:
+    from app.web.app import Application
 
 from app.store.database.models import TgChat
 
@@ -19,35 +23,43 @@ class ChatProcessor:
         message: str,
         chat_id: int,
         session: async_sessionmaker[AsyncSession],
-        app,
+        app : "Application",
     ):
         if message == "/start_game":
             await app.store.tg_api.tg_client.send_message(
                 chat_id=chat_id,
-                text="game already started",
+                text="Игра уже начата",
             )
 
         elif message == "/stop_game":
             await ChatFSM.set_state(session, chat_id, "no game")
             await app.store.tg_api.tg_client.send_message(
                 chat_id=chat_id,
-                text="game was finished",
+                text="Игра оконончена",
             )
+
+
 
     @staticmethod
     async def start_processor(
         message: str,
         chat_id: int,
         session: async_sessionmaker[AsyncSession],
-        app,
+        app : "Application",
     ):
         if message == "/start_game":
             try:
                 await ChatFSM.set_state(session, chat_id, "game")
+
                 await app.store.tg_api.tg_client.send_message(
                     chat_id=chat_id,
-                    text="game started",
+                    text="Игра началась!",
                 )
+                await app.store.tg_api.tg_client.send_message(
+                    chat_id=chat_id,
+                    text="Для участия введите +",
+                )
+
             except Exception:
                 await app.store.tg_api.tg_client.send_message(
                     chat_id=chat_id,

@@ -48,8 +48,7 @@ class UserInChat(BaseModel):
     id = Column(Integer, primary_key=True)
     user_id = Column(ForeignKey("telegram_user.id"))
     chat_id = Column(ForeignKey("telegram_chat.id"))
-    state = Column(String, nullable=False)
-    cur_balance = Column(Numeric, nullable=False)
+
 
 
 class UserInGame(BaseModel):
@@ -58,6 +57,7 @@ class UserInGame(BaseModel):
     user_id = Column(ForeignKey("telegram_user.id"))
     game_id = Column(ForeignKey("game.id"))
     state = Column(String, nullable=True)
+    cur_balance = Column(Numeric, nullable=False)
     user = relationship("TgUser", back_populates="game_associations")
     game = relationship("Game", back_populates="player_associations")
     assets = relationship(

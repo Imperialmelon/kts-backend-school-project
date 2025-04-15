@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.FSM.chat.state import ChatProcessor
-from app.store.database.models import TgChat
+from app.store.database.models import TgChat, TgUser
 
 
 class BotManager:
@@ -22,6 +22,7 @@ class BotManager:
         self.logger: Logger = getLogger("handler")
 
     async def handle_updates(self, updates: list[UpdateObj]):
+
         for update in updates.result:
             if update.message is not None:
                 await self._process_message(update)
@@ -45,21 +46,13 @@ class BotManager:
         # username = update.message.from_.username
         # text = message.text
 
-        async with self.app.database.session() as session:
-            async with session.begin():
-                chat = await session.execute(
-                    select(TgChat).where(TgChat.telegram_id == chat_id)
-                )
-                chat = chat.scalar_one_or_none()
-                if not chat:
-                    chat = TgChat(telegram_id=chat_id)
-                    session.add(chat)
-                    await session.flush()
-                    await session.refresh(chat)
-                chat_state = chat.state
+        chat = await self.app.store.telegram_accessor.get_chat_by_telegram_id(chat_id)
+        if not chat:
+            chat = await self.app.store.telegram_accessor.create_chat_by_telegram_id(chat_id)
+        chat_state = chat.state
 
-            await self._state_processor(
-                message.text, chat_state, chat_id, session
+        await self._state_processor(
+                message.text, chat_state, chat_id, self.app.database.session()
             )
 
     async def _state_processor(
