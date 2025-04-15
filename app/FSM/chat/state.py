@@ -11,7 +11,8 @@ if typing.TYPE_CHECKING:
     from app.web.app import Application
 
 from app.store.database.models import TgChat
-
+from app.store.game.accessor import GameAccessor
+from app.FSM.game.state import GameFSM, GameProcessor
 
 class ChatProcessor:
     class ChatStates(StrEnum):
@@ -32,11 +33,19 @@ class ChatProcessor:
             )
 
         elif message == "/stop_game":
-            await ChatFSM.set_state(session, chat_id, "no game")
+            chat = await app.store.telegram_accessor.get_chat_by_telegram_id(chat_id=chat_id)
+            custom_chat_id = chat.id
+            game = await app.store.game_accessor.finish_game_in_chat(custom_chat_id)
+            if game:
+                
+                await ChatFSM.set_state(session, chat_id, "no game")
+                await GameFSM.set_state(session, game.id, GameProcessor.GameStates.GameFinished.value)
             await app.store.tg_api.tg_client.send_message(
                 chat_id=chat_id,
                 text="Игра оконончена",
             )
+        # else:
+
 
 
 
@@ -50,21 +59,25 @@ class ChatProcessor:
         if message == "/start_game":
             try:
                 await ChatFSM.set_state(session, chat_id, "game")
-
+                chat = await app.store.telegram_accessor.get_chat_by_telegram_id(chat_id=chat_id)
+                custom_chat_id = chat.id
+                await app.store.game_accessor.create_game_in_chat(custom_chat_id)
                 await app.store.tg_api.tg_client.send_message(
                     chat_id=chat_id,
                     text="Игра началась!",
                 )
+
                 await app.store.tg_api.tg_client.send_message(
                     chat_id=chat_id,
                     text="Для участия введите +",
                 )
 
-            except Exception:
+            except Exception as e:
                 await app.store.tg_api.tg_client.send_message(
                     chat_id=chat_id,
                     text="Error starting game",
                 )
+                print(e)
         elif message == "/stop_game":
             await app.store.tg_api.tg_client.send_message(
                 chat_id=chat_id,

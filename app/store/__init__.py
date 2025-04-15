@@ -2,7 +2,7 @@ import typing
 
 from app.store.database.database import Database
 from app.store.telegam.accessor import TelegramAccessor
-
+from app.store.game.accessor import GameAccessor
 
 if typing.TYPE_CHECKING:
     from app.web.app import Application
@@ -16,6 +16,7 @@ class Store:
         self.tg_api = TgApiAccessor(app, token=app.config.bot.token)
         self.bots_manager = BotManager(app)
         self.telegram_accessor = TelegramAccessor(app)
+        self.game_accessor = GameAccessor(app)
 
 
 def setup_store(app: "Application"):
