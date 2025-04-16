@@ -1,9 +1,9 @@
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from app.base.base_accessor import BaseAccessor
 from app.FSM.game.state import GameProcessor
 from app.FSM.player.state import PlayerProcessor
-from app.store.database.models import Game, UserInGame, func
+from app.store.database.models import Game, UserInGame
 
 
 class GameAccessor(BaseAccessor):
@@ -25,12 +25,14 @@ class GameAccessor(BaseAccessor):
             if game:
                 game.state = GameProcessor.GameStates.GameFinished.value
                 game.finished_at = func.now()
+                session.add(game)
                 players = await session.execute(
                     select(UserInGame).where(UserInGame.game_id == game.id)
                 )
                 players = players.scalars().all()
                 for player in players:
                     player.state = PlayerProcessor.PlayerStates.NotGaming.value
+
         return game
 
     async def get_active_game_by_chat_id(self, chat_id: int) -> Game:
