@@ -1,8 +1,8 @@
 import typing
 
 from app.store.database.database import Database
-from app.store.telegam.accessor import TelegramAccessor
 from app.store.game.accessor import GameAccessor
+from app.store.telegam.accessor import TelegramAccessor
 
 if typing.TYPE_CHECKING:
     from app.web.app import Application
