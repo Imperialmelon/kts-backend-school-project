@@ -3,10 +3,17 @@ from typing import NoReturn
 from sqlalchemy import func, select, update
 
 from app.base.base_accessor import BaseAccessor
+from app.consts import SESSION_LIMIT, START_PLAYER_BALANCE
 from app.FSM.chat.state import ChatFSM
 from app.FSM.game.state import GameFSM
 from app.FSM.player.state import PlayerFSM
-from app.store.database.models import Game, TgChat, TgUser, UserInGame
+from app.store.database.models import (
+    Game,
+    TgChat,
+    TgUser,
+    TradingSession,
+    UserInGame,
+)
 
 
 class GameAccessor(BaseAccessor):
@@ -15,8 +22,8 @@ class GameAccessor(BaseAccessor):
             game = Game(
                 chat_id=chat_id,
                 state=GameFSM.GameStates.WaitingForConfirmation.value,
-                session_limit=3,
-                start_player_balance=10000,
+                session_limit=SESSION_LIMIT,
+                start_player_balance=START_PLAYER_BALANCE,
             )
             session.add(game)
         return game
@@ -49,13 +56,29 @@ class GameAccessor(BaseAccessor):
                 .where(TgChat.id == chat_id)
                 .values(state=ChatFSM.ChatStates.WaitingForGame)
             )
-        game = game.scalar_one_or_none()
-        if game:
-            await session.execute(
-                update(UserInGame)
-                .where(UserInGame.game_id == game.id)
-                .values(state=PlayerFSM.PlayerStates.NotGaming.value)
-            )
+            game = game.scalar_one_or_none()
+            if game:
+                await session.execute(
+                    update(UserInGame)
+                    .where(UserInGame.game_id == game.id)
+                    .values(state=PlayerFSM.PlayerStates.NotGaming.value)
+                )
+                trading_session = await session.execute(
+                    select(TradingSession)
+                    .where(
+                        (TradingSession.game_id == game.id)
+                        & (TradingSession.finished_at.is_(None))
+                    )
+                    .order_by(TradingSession.started_at.desc())
+                    .limit(1)
+                )
+                trading_session = trading_session.scalar_one_or_none()
+                if trading_session:
+                    await session.execute(
+                        update(TradingSession)
+                        .where(TradingSession.id == trading_session.id)
+                        .values(finished_at=func.now(), is_finished=True)
+                    )
 
         return game
 
@@ -148,3 +171,35 @@ class GameAccessor(BaseAccessor):
                 )
             )
         return result.scalars().all()
+
+    async def create_trading_session(
+        self, game_id: int, session_num: int
+    ) -> TradingSession:
+        async with self.app.database.session.begin() as session:
+            trading_session = TradingSession(
+                game_id=game_id,
+                session_num=session_num,
+            )
+            session.add(trading_session)
+        return trading_session
+
+    async def get_current_game_session(self, game_id) -> TradingSession:
+        async with self.app.database.session.begin() as session:
+            trading_session = await session.execute(
+                select(TradingSession)
+                .where(
+                    (TradingSession.game_id == game_id)
+                    & (TradingSession.finished_at.is_(None))
+                )
+                .order_by(TradingSession.started_at.desc())
+                .limit(1)
+            )
+        return trading_session.scalar_one_or_none()
+
+    async def finish_session(self, session_id: int) -> NoReturn:
+        async with self.app.database.session.begin() as session:
+            await session.execute(
+                update(TradingSession)
+                .where(TradingSession.id == session_id)
+                .values(finished_at=func.now(), is_finished=True)
+            )

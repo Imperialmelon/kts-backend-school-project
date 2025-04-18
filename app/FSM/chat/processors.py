@@ -57,7 +57,7 @@ class ChatProcessor:
     async def handle_finish_game(
         self, message: Message, app: "Application"
     ) -> typing.NoReturn:
-        chat = await app.store.telegram_accessor.get_chat_by_telegram_id(
+        chat = await app.telegram_accessor.get_chat_by_telegram_id(
             message.chat.id
         )
         game = await app.store.game_accessor.finish_game_in_chat(chat.id)
@@ -96,10 +96,10 @@ class ChatProcessor:
                 )
                 if text_match and chat_state_match:
                     return await method(cls(), message, app)
-        chat = await app.store.telegram_accessor.get_chat_by_telegram_id(
+        chat = await app.telegram_accessor.get_chat_by_telegram_id(
             message.chat.id
         )
-        game = await app.store.game_accessor.get_active_game_by_chat_id(chat.id)
+        game = await app.game_accessor.get_active_game_by_chat_id(chat.id)
         if game:
             await GameProcessor.process_message(
                 GameProcessor, chat, game, message, app

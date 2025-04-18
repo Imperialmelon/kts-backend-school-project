@@ -18,6 +18,14 @@ class Application(AiohttpApplication):
     database: Database | None = None
     state_manager: FSMManager | None = None
 
+    @property
+    def game_accessor(self):
+        return self.store.game_accessor
+
+    @property
+    def telegram_accessor(self):
+        return self.store.telegram_accessor
+
 
 class Request(AiohttpRequest):
     @property

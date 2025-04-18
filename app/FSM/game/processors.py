@@ -28,9 +28,7 @@ class GameProcessor:
             try:
                 await timer(timeout, app, chat)
                 if game.state == GameFSM.GameStates.WaitingForConfirmation:
-                    players = await app.store.game_accessor.get_game_players(
-                        game.id
-                    )
+                    players = await app.game_accessor.get_game_players(game.id)
                     player_list = "\n".join(
                         [f"• {player.first_name}" for player in players]
                     )
@@ -38,8 +36,24 @@ class GameProcessor:
                         chat_id=chat.telegram_id,
                         text=f"Текущие игроки:\n{player_list}",
                     )
+                    if len(player_list) < 1:
+                        await app.store.tg_api.tg_client.send_message(
+                            chat_id=chat.telegram_id,
+                            text="Недостаточно игроков для игры",
+                        )
 
-                    await app.store.game_accessor.finish_game_in_chat(chat.id)
+                        await app.game_accessor.finish_game_in_chat(chat.id)
+                    else:
+                        await app.game_accessor.set_game_state(
+                            game.id, state=GameFSM.GameStates.GameGoing
+                        )
+                        await app.game_accessor.create_trading_session(
+                            game.id, 1
+                        )
+                        await app.store.tg_api.tg_client.send_message(
+                            chat_id=chat.telegram_id,
+                            text="Сессия 1 начата!",
+                        )
             except asyncio.CancelledError:
                 pass
             finally:
@@ -66,21 +80,21 @@ class GameProcessor:
         app: "Application",
     ):
         message_author_telegram_id = callback_query.message.from_.id
-        user = await app.store.telegram_accessor.get_user_by_telegram_id(
+        user = await app.telegram_accessor.get_user_by_telegram_id(
             telegram_id=message_author_telegram_id
         )
         if not user:
-            user = await app.store.telegram_accessor.create_user_by_tg_id(
+            user = await app.telegram_accessor.create_user_by_tg_id(
                 telegram_id=message_author_telegram_id,
                 first_name=callback_query.from_.first_name,
                 last_name=callback_query.from_.last_name,
                 username=callback_query.from_.username,
             )
-        await app.store.telegram_accessor.connect_user_to_chat(
+        await app.telegram_accessor.connect_user_to_chat(
             chat.telegram_id, user.telegram_id
         )
         existing_player = (
-            await app.store.game_accessor.get_player_by_chat_and_user_id(
+            await app.game_accessor.get_player_by_chat_and_user_id(
                 current_game.id, user.id
             )
         )
@@ -100,7 +114,7 @@ class GameProcessor:
                     text=f"Пользователь {user.first_name} подтвердил участие",
                 )
         else:
-            await app.store.game_accessor.create_player_by_game_user_id(
+            await app.game_accessor.create_player_by_game_user_id(
                 game_id=current_game.id,
                 user_custom_id=user.id,
                 state=PlayerFSM.PlayerStates.Gaming.value,
@@ -123,13 +137,11 @@ class GameProcessor:
         app: "Application",
     ):
         message_author_telegram_id = callback_query.message.from_.id
-        user = await app.store.telegram_accessor.get_user_by_telegram_id(
+        user = await app.telegram_accessor.get_user_by_telegram_id(
             telegram_id=message_author_telegram_id
         )
-        player = (
-            await app.store.game_accessor.get_active_player_by_game_and_user_id(
-                current_game.id, user.id
-            )
+        player = await app.game_accessor.get_active_player_by_game_and_user_id(
+            current_game.id, user.id
         )
 
         if player:
