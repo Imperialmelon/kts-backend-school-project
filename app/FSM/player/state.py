@@ -5,17 +5,16 @@ if typing.TYPE_CHECKING:
     from app.web.app import Application
 
 
-class PlayerProcessor:
+class PlayerFSM:
     class PlayerStates(StrEnum):
         NotGaming = "not gaming"
         Gaming = "game"
 
+    def __init__(self, app: "Application"):
+        self.app = app
 
-class PlayerFSM:
-    @staticmethod
-    async def get_state(player_id: int):
+    async def get_state(self, player_id: int):
         pass
 
-    @staticmethod
-    async def set_state(app: "Application", player_id: int, state: str):
-        pass
+    async def set_state(self, player_id: int, state: PlayerStates):
+        await self.app.store.game_accessor.set_player_state(player_id, state)

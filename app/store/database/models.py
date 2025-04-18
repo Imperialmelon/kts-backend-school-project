@@ -3,13 +3,19 @@ from sqlalchemy import (
     TIMESTAMP,
     BigInteger,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+from app.FSM.chat.state import ChatFSM
+from app.FSM.game.state import GameFSM
+from app.FSM.player.state import PlayerFSM
 
 
 class BaseModel(DeclarativeBase):
@@ -21,21 +27,19 @@ class TgUser(BaseModel):
     id: Mapped[int] = mapped_column(
         Integer, primary_key=True, autoincrement=True
     )
-    first_name: Mapped[str] = mapped_column(String)
-    last_name: Mapped[str | None] = mapped_column(String, nullable=True)
-    username: Mapped[str | None] = mapped_column(String, nullable=True)
+    first_name: Mapped[str]
+    last_name: Mapped[str | None]
+    username: Mapped[str | None]
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True)
 
     chats: Mapped[list["TgChat"]] = relationship(
-        "TgChat", secondary="user_chat", back_populates="users"
+        secondary="user_chat", back_populates="users"
     )
     game_associations: Mapped[list["UserInGame"]] = relationship(
-        "UserInGame", back_populates="user"
+        back_populates="user"
     )
     games: Mapped[list["Game"]] = relationship("Game", secondary="user_game")
-    games_won: Mapped[list["Game"]] = relationship(
-        "Game", back_populates="winner"
-    )
+    games_won: Mapped[list["Game"]] = relationship(back_populates="winner")
 
 
 class TgChat(BaseModel):
@@ -44,12 +48,14 @@ class TgChat(BaseModel):
         Integer, autoincrement=True, primary_key=True
     )
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True)
-    state: Mapped[str] = mapped_column(String, default="no game")
+    state: Mapped[str] = mapped_column(
+        String, default=ChatFSM.ChatStates.WaitingForGame.value
+    )
 
     users: Mapped[list["TgUser"]] = relationship(
-        "TgUser", secondary="user_chat", back_populates="chats"
+        secondary="user_chat", back_populates="chats"
     )
-    games: Mapped[list["Game"]] = relationship("Game", back_populates="chat")
+    games: Mapped[list["Game"]] = relationship(back_populates="chat")
 
 
 class UserInChat(BaseModel):
@@ -72,17 +78,15 @@ class UserInGame(BaseModel):
     )
     user_id: Mapped[int] = mapped_column(ForeignKey("telegram_user.id"))
     game_id: Mapped[int] = mapped_column(ForeignKey("game.id"))
-    state: Mapped[str] = mapped_column(String, default="not gaming")
-    cur_balance: Mapped[int] = mapped_column(Numeric, nullable=False)
+    state: Mapped[str] = mapped_column(
+        String, default=PlayerFSM.PlayerStates.NotGaming.value
+    )
+    cur_balance: Mapped[int] = mapped_column(Numeric)
 
-    user: Mapped["TgUser"] = relationship(
-        "TgUser", back_populates="game_associations"
-    )
-    game: Mapped["Game"] = relationship(
-        "Game", back_populates="player_associations"
-    )
+    user: Mapped["TgUser"] = relationship(back_populates="game_associations")
+    game: Mapped["Game"] = relationship(back_populates="player_associations")
     assets: Mapped[list["Asset"]] = relationship(
-        "Asset", secondary="user_in_game_asset", back_populates="user_games"
+        secondary="user_in_game_asset", back_populates="user_games"
     )
 
     __table_args__ = (
@@ -98,28 +102,35 @@ class Game(BaseModel):
     started_at: Mapped[TIMESTAMP] = mapped_column(
         TIMESTAMP, server_default=func.now(), nullable=False
     )
-    finished_at: Mapped[TIMESTAMP | None] = mapped_column(
-        TIMESTAMP, nullable=True
-    )
-    state: Mapped[str] = mapped_column(String, nullable=False)
-    start_player_balance: Mapped[int] = mapped_column(Numeric, nullable=False)
-    session_limit: Mapped[int] = mapped_column(Integer, nullable=False)
+    finished_at: Mapped[TIMESTAMP | None] = mapped_column(TIMESTAMP)
+    state: Mapped[str]
+    start_player_balance: Mapped[int] = mapped_column(Numeric)
+    session_limit: Mapped[int]
     winner_id: Mapped[int | None] = mapped_column(
-        ForeignKey("telegram_user.id"), nullable=True
+        ForeignKey("telegram_user.id")
     )
-    chat_id: Mapped[int] = mapped_column(
-        ForeignKey("telegram_chat.id"), nullable=False
-    )
+    chat_id: Mapped[int] = mapped_column(ForeignKey("telegram_chat.id"))
 
     player_associations: Mapped[list["UserInGame"]] = relationship(
-        "UserInGame", back_populates="game", foreign_keys="[UserInGame.game_id]"
+        back_populates="game", foreign_keys="[UserInGame.game_id]"
     )
     chat: Mapped["TgChat"] = relationship("TgChat", back_populates="games")
     winner: Mapped["TgUser | None"] = relationship(
-        "TgUser", back_populates="games_won", foreign_keys=[winner_id]
+        back_populates="games_won", foreign_keys=[winner_id]
     )
     trading_sessions: Mapped[list["TradingSession"]] = relationship(
-        "TradingSession", back_populates="game"
+        back_populates="game"
+    )
+
+    __table_args__ = (
+        Index(
+            "one_active_game_per_chat",
+            "chat_id",
+            unique=True,
+            postgresql_where=text(
+                f"state != '{GameFSM.GameStates.GameFinished.value}'"
+            ),
+        ),
     )
 
 
@@ -130,19 +141,15 @@ class TradingSession(BaseModel):
     )
     game_id: Mapped[int] = mapped_column(ForeignKey("game.id"))
     started_at: Mapped[TIMESTAMP] = mapped_column(
-        TIMESTAMP, server_default=func.now(), nullable=False
+        TIMESTAMP, server_default=func.now()
     )
-    finished_at: Mapped[TIMESTAMP | None] = mapped_column(
-        TIMESTAMP, nullable=True
-    )
+    finished_at: Mapped[TIMESTAMP | None] = mapped_column(TIMESTAMP)
     is_finished: Mapped[bool] = mapped_column(BOOLEAN, default=False)
-    session_num: Mapped[int] = mapped_column(Integer, nullable=False)
+    session_num: Mapped[int]
 
-    game: Mapped["Game"] = relationship(
-        "Game", back_populates="trading_sessions"
-    )
+    game: Mapped["Game"] = relationship(back_populates="trading_sessions")
     asset_prices: Mapped[list["AssetPriceInSession"]] = relationship(
-        "AssetPriceInSession", back_populates="session"
+        back_populates="session"
     )
 
 
@@ -151,13 +158,13 @@ class Asset(BaseModel):
     id: Mapped[int] = mapped_column(
         Integer, primary_key=True, autoincrement=True
     )
-    title: Mapped[str] = mapped_column(String, nullable=False)
+    title: Mapped[str]
 
     user_games: Mapped[list["UserInGame"]] = relationship(
-        "UserInGame", secondary="user_in_game_asset", back_populates="assets"
+        secondary="user_in_game_asset", back_populates="assets"
     )
     prices: Mapped[list["AssetPriceInSession"]] = relationship(
-        "AssetPriceInSession", back_populates="asset"
+        back_populates="asset"
     )
 
 
@@ -184,11 +191,11 @@ class AssetPriceInSession(BaseModel):
     )
     asset_id: Mapped[int] = mapped_column(ForeignKey("asset.id"))
     session_id: Mapped[int] = mapped_column(ForeignKey("trading_session.id"))
-    price: Mapped[int] = mapped_column(Numeric, nullable=False)
+    price: Mapped[int] = mapped_column(Numeric)
 
     asset: Mapped["Asset"] = relationship("Asset", back_populates="prices")
     session: Mapped["TradingSession"] = relationship(
-        "TradingSession", back_populates="asset_prices"
+        back_populates="asset_prices"
     )
 
     __table_args__ = (

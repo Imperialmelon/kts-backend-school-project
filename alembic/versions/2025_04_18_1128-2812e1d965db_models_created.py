@@ -1,8 +1,8 @@
-"""updated alchemy version
+"""models created
 
-Revision ID: 445b46f0617b
+Revision ID: 2812e1d965db
 Revises: 
-Create Date: 2025-04-16 16:46:33.949219
+Create Date: 2025-04-18 11:28:48.357835
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '445b46f0617b'
+revision: str = '2812e1d965db'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -54,6 +54,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['winner_id'], ['telegram_user.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index('one_active_game_per_chat', 'game', ['chat_id'], unique=True, postgresql_where=sa.text("state != 'finished'"))
     op.create_table('user_chat',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -114,6 +115,7 @@ def downgrade() -> None:
     op.drop_table('user_game')
     op.drop_table('trading_session')
     op.drop_table('user_chat')
+    op.drop_index('one_active_game_per_chat', table_name='game', postgresql_where=sa.text("state != 'finished'"))
     op.drop_table('game')
     op.drop_table('telegram_user')
     op.drop_table('telegram_chat')
