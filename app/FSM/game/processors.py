@@ -1,3 +1,4 @@
+import asyncio
 import typing
 
 from app.FSM.game.state import GameFSM
@@ -10,9 +11,49 @@ if typing.TYPE_CHECKING:
 
 
 from app.store.tg_api.dataclasses import CallbackQuery, Message
+from app.utils.timer import timer
 
 
 class GameProcessor:
+    _timers = {}
+
+    @staticmethod
+    async def set_timer(
+        app: "Application", chat: TgChat, game: Game, timeout: int = 20
+    ):
+        if game.id in GameProcessor._timers:
+            GameProcessor._timers[game.id].cancel()
+
+        async def _game_timer():
+            try:
+                await timer(timeout, app, chat)
+                if game.state == GameFSM.GameStates.WaitingForConfirmation:
+                    players = await app.store.game_accessor.get_game_players(
+                        game.id
+                    )
+                    player_list = "\n".join(
+                        [f"• {player.first_name}" for player in players]
+                    )
+                    await app.store.tg_api.tg_client.send_message(
+                        chat_id=chat.telegram_id,
+                        text=f"Текущие игроки:\n{player_list}",
+                    )
+
+                    await app.store.game_accessor.finish_game_in_chat(chat.id)
+            except asyncio.CancelledError:
+                pass
+            finally:
+                GameProcessor._timers.pop(game.id, None)
+
+        task = asyncio.create_task(_game_timer())
+        GameProcessor._timers[game.id] = task
+
+    @staticmethod
+    async def cancel_timer(game_id: int):
+        if game_id in GameProcessor._timers:
+            GameProcessor._timers[game_id].cancel()
+            GameProcessor._timers.pop(game_id)
+
     @game_message_handler(
         callback_data="confirm",
         game_state=GameFSM.GameStates.WaitingForConfirmation,
@@ -59,7 +100,7 @@ class GameProcessor:
                     text=f"Пользователь {user.first_name} подтвердил участие",
                 )
         else:
-            await app.store.game_accessor.create_player_by_chat_user_id(
+            await app.store.game_accessor.create_player_by_game_user_id(
                 game_id=current_game.id,
                 user_custom_id=user.id,
                 state=PlayerFSM.PlayerStates.Gaming.value,

@@ -13,6 +13,8 @@ from app.utils.keyboard import get_participation_keyboard
 
 
 class ChatProcessor:
+    current_timers = {}
+
     @chat_message_handler(
         text="/start_game", chat_state=ChatFSM.ChatStates.WaitingForGame
     )
@@ -23,12 +25,19 @@ class ChatProcessor:
         chat = await app.store.telegram_accessor.get_chat_by_telegram_id(
             message.chat.id
         )
-        await app.store.game_accessor.create_game_in_chat(chat.id)
+        current_game = await app.store.game_accessor.create_game_in_chat(
+            chat.id
+        )
 
         await app.store.tg_api.tg_client.send_message(
             chat_id=message.chat.id,
             text="Игра началась! Подтвердите участие:",
             reply_markup=get_participation_keyboard(),
+        )
+        await GameProcessor.set_timer(app, chat, current_game, timeout=5)
+        await app.store.tg_api.tg_client.send_message(
+            chat_id=message.chat.id,
+            text="Игра началась! Таймер запущен",
         )
 
     @chat_message_handler(
@@ -42,7 +51,9 @@ class ChatProcessor:
             text="Игра уже начата",
         )
 
-    @chat_message_handler(text="/stop_game")
+    @chat_message_handler(
+        text="/stop_game", chat_state=ChatFSM.ChatStates.GameIsGoing
+    )
     async def handle_finish_game(
         self, message: Message, app: "Application"
     ) -> typing.NoReturn:
@@ -52,6 +63,7 @@ class ChatProcessor:
         game = await app.store.game_accessor.finish_game_in_chat(chat.id)
 
         if game:
+            await GameProcessor().cancel_timer(game.id)
             await app.state_manager.chat_fsm.set_state(
                 message.chat.id, ChatFSM.ChatStates.WaitingForGame
             )
