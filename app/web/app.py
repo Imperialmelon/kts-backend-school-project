@@ -26,6 +26,10 @@ class Application(AiohttpApplication):
     def telegram_accessor(self):
         return self.store.telegram_accessor
 
+    @property
+    def tg_client(self):
+        return self.store.tg_api.tg_client
+
 
 class Request(AiohttpRequest):
     @property

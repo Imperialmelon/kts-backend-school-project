@@ -7,9 +7,9 @@ if typing.TYPE_CHECKING:
 
 class GameFSM:
     class GameStates(StrEnum):
-        WaitingForConfirmation = "waiting_for_conf"
-        GameGoing = "session"
-        GameFinished = "finished"
+        WAITING_FOR_CONFIRMATION = "waiting_for_conf"
+        GAME_GOING = "session"
+        GAME_FINISHED = "finished"
 
     def __init__(self, app: "Application"):
         self.app = app

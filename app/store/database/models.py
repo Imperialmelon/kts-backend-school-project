@@ -49,7 +49,7 @@ class TgChat(BaseModel):
     )
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True)
     state: Mapped[str] = mapped_column(
-        String, default=ChatFSM.ChatStates.WaitingForGame.value
+        String, default=ChatFSM.ChatStates.WAITING_FOR_GAME.value
     )
 
     users: Mapped[list["TgUser"]] = relationship(
@@ -79,7 +79,7 @@ class UserInGame(BaseModel):
     user_id: Mapped[int] = mapped_column(ForeignKey("telegram_user.id"))
     game_id: Mapped[int] = mapped_column(ForeignKey("game.id"))
     state: Mapped[str] = mapped_column(
-        String, default=PlayerFSM.PlayerStates.NotGaming.value
+        String, default=PlayerFSM.PlayerStates.NOT_GAMING.value
     )
     cur_balance: Mapped[int] = mapped_column(Numeric)
 
@@ -128,7 +128,7 @@ class Game(BaseModel):
             "chat_id",
             unique=True,
             postgresql_where=text(
-                f"state != '{GameFSM.GameStates.GameFinished.value}'"
+                f"state != '{GameFSM.GameStates.GAME_FINISHED.value}'"
             ),
         ),
     )
@@ -150,6 +150,14 @@ class TradingSession(BaseModel):
     game: Mapped["Game"] = relationship(back_populates="trading_sessions")
     asset_prices: Mapped[list["AssetPriceInSession"]] = relationship(
         back_populates="session"
+    )
+    __table_args__ = (
+        Index(
+            "one_active_session_per_game",
+            "game_id",
+            unique=True,
+            postgresql_where=text("is_finished IS FALSE"),
+        ),
     )
 
 

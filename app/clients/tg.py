@@ -63,7 +63,7 @@ class TgClient:
             payload["reply_markup"] = json.dumps(reply_markup)
         async with self.session.post(url, json=payload) as resp:
             res_dict = await resp.json()
-            return SendMessageResponse.Schema().load(res_dict)
+        return SendMessageResponse.Schema().load(res_dict)
 
     async def answer_callback_query(
         self,
@@ -82,4 +82,4 @@ class TgClient:
 
         async with self.session.post(url, json=payload) as resp:
             result = await resp.json()
-            return result.get("ok", False)
+        return result.get("ok", False)

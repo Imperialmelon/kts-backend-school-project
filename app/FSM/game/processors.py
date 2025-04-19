@@ -18,6 +18,35 @@ class GameProcessor:
     _timers = {}
 
     @staticmethod
+    async def handle_timer_end(app: "Application", chat: TgChat, game: Game):
+        if game.state == GameFSM.GameStates.WAITING_FOR_CONFIRMATION:
+            players = await app.game_accessor.get_game_players(game.id)
+            player_list = "\n".join(
+                [f"• {player.first_name}" for player in players]
+            )
+            if player_list:
+                await app.tg_client.send_message(
+                    chat_id=chat.telegram_id,
+                    text=f"Текущие игроки:\n{player_list}",
+                )
+            if len(player_list) < 1:
+                await app.tg_client.send_message(
+                    chat_id=chat.telegram_id,
+                    text="Недостаточно игроков для игры",
+                )
+
+                await app.game_accessor.finish_game_in_chat(chat.id)
+            else:
+                await app.game_accessor.set_game_state(
+                    game.id, state=GameFSM.GameStates.GAME_GOING
+                )
+                await app.game_accessor.create_trading_session(game.id, 1)
+                await app.tg_client.send_message(
+                    chat_id=chat.telegram_id,
+                    text="Сессия 1 начата!",
+                )
+
+    @staticmethod
     async def set_timer(
         app: "Application", chat: TgChat, game: Game, timeout: int = 20
     ):
@@ -27,33 +56,7 @@ class GameProcessor:
         async def _game_timer():
             try:
                 await timer(timeout, app, chat)
-                if game.state == GameFSM.GameStates.WaitingForConfirmation:
-                    players = await app.game_accessor.get_game_players(game.id)
-                    player_list = "\n".join(
-                        [f"• {player.first_name}" for player in players]
-                    )
-                    await app.store.tg_api.tg_client.send_message(
-                        chat_id=chat.telegram_id,
-                        text=f"Текущие игроки:\n{player_list}",
-                    )
-                    if len(player_list) < 1:
-                        await app.store.tg_api.tg_client.send_message(
-                            chat_id=chat.telegram_id,
-                            text="Недостаточно игроков для игры",
-                        )
-
-                        await app.game_accessor.finish_game_in_chat(chat.id)
-                    else:
-                        await app.game_accessor.set_game_state(
-                            game.id, state=GameFSM.GameStates.GameGoing
-                        )
-                        await app.game_accessor.create_trading_session(
-                            game.id, 1
-                        )
-                        await app.store.tg_api.tg_client.send_message(
-                            chat_id=chat.telegram_id,
-                            text="Сессия 1 начата!",
-                        )
+                await GameProcessor.handle_timer_end(app, chat, game)
             except asyncio.CancelledError:
                 pass
             finally:
@@ -70,9 +73,9 @@ class GameProcessor:
 
     @game_message_handler(
         callback_data="confirm",
-        game_state=GameFSM.GameStates.WaitingForConfirmation,
+        game_state=GameFSM.GameStates.WAITING_FOR_CONFIRMATION,
     )
-    async def handle_conifrm_participation(
+    async def handle_confirm_participation(
         self,
         chat: TgChat,
         current_game: Game,
@@ -94,25 +97,23 @@ class GameProcessor:
             chat.telegram_id, user.telegram_id
         )
         existing_player = (
-            await app.game_accessor.get_player_by_chat_and_user_id(
+            await app.game_accessor.get_player_by_game_and_user_id(
                 current_game.id, user.id
             )
         )
         if existing_player:
             if existing_player.state == PlayerFSM.PlayerStates.Gaming.value:
-                await app.store.tg_api.tg_client.send_message(
+                await app.tg_client.send_message(
                     chat_id=chat.telegram_id,
                     text=f"{user.first_name}, ваше участие уже подтверждено",
                 )
-            else:
-                await app.state_manager.player_fsm.set_state(
-                    existing_player.id,
-                    state=PlayerFSM.PlayerStates.Gaming,
-                )
-                await app.store.tg_api.tg_client.send_message(
-                    chat_id=chat.telegram_id,
-                    text=f"Пользователь {user.first_name} подтвердил участие",
-                )
+                return
+
+            await app.state_manager.player_fsm.set_state(
+                existing_player.id,
+                state=PlayerFSM.PlayerStates.Gaming,
+            )
+
         else:
             await app.game_accessor.create_player_by_game_user_id(
                 game_id=current_game.id,
@@ -120,14 +121,14 @@ class GameProcessor:
                 state=PlayerFSM.PlayerStates.Gaming.value,
                 cur_balance=current_game.start_player_balance,
             )
-            await app.store.tg_api.tg_client.send_message(
-                chat_id=chat.telegram_id,
-                text=f"Пользователь {user.first_name} подтвердил участие",
-            )
+        await app.tg_client.send_message(
+            chat_id=chat.telegram_id,
+            text=f"Пользователь {user.first_name} подтвердил участие",
+        )
 
     @game_message_handler(
         callback_data="cancel",
-        game_state=GameFSM.GameStates.WaitingForConfirmation,
+        game_state=GameFSM.GameStates.WAITING_FOR_CONFIRMATION,
     )
     async def handle_cancel_participation(
         self,
@@ -146,9 +147,9 @@ class GameProcessor:
 
         if player:
             await app.state_manager.player_fsm.set_state(
-                player.id, state=PlayerFSM.PlayerStates.NotGaming
+                player.id, state=PlayerFSM.PlayerStates.NOT_GAMING
             )
-            await app.store.tg_api.tg_client.send_message(
+            await app.tg_client.send_message(
                 chat_id=chat.telegram_id,
                 text=f"Пользователь {user.first_name} отменил участие",
             )
@@ -186,7 +187,7 @@ class GameProcessor:
                 if game_state_match and callback_match:
                     return await method(cls(), chat, current_game, update, app)
 
-        await app.store.tg_api.tg_client.send_message(
+        await app.tg_client.send_message(
             chat_id=chat.telegram_id,
             text="Неизвестная команда",
         )

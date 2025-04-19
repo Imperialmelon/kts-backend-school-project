@@ -11,5 +11,5 @@ async def timer(timeout: int, app: "Application", chat: TgChat):
     await asyncio.sleep(timeout)
     await app.store.tg_api.tg_client.send_message(
         chat_id=chat.telegram_id,
-        text="время вышло",
+        text="Время вышло",
     )

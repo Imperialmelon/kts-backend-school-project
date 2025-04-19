@@ -1,6 +1,6 @@
 from typing import NoReturn
 
-from sqlalchemy import func, select, update
+from sqlalchemy import Sequence, func, select, update
 
 from app.base.base_accessor import BaseAccessor
 from app.consts import SESSION_LIMIT, START_PLAYER_BALANCE
@@ -21,76 +21,62 @@ class GameAccessor(BaseAccessor):
         async with self.app.database.session.begin() as session:
             game = Game(
                 chat_id=chat_id,
-                state=GameFSM.GameStates.WaitingForConfirmation.value,
+                state=GameFSM.GameStates.WAITING_FOR_CONFIRMATION.value,
                 session_limit=SESSION_LIMIT,
                 start_player_balance=START_PLAYER_BALANCE,
             )
             session.add(game)
         return game
 
-    async def finish_game_in_chat(self, chat_id: int) -> Game:
+    async def finish_game_in_chat(self, chat_id: int) -> Game | None:
         async with self.app.database.session.begin() as session:
-            await session.execute(
+            game = await session.execute(
                 update(Game)
                 .where(
                     (Game.chat_id == chat_id)
-                    & (Game.state != GameFSM.GameStates.GameFinished.value)
+                    & (Game.state != GameFSM.GameStates.GAME_FINISHED.value)
                 )
                 .values(
-                    state=GameFSM.GameStates.GameFinished.value,
+                    state=GameFSM.GameStates.GAME_FINISHED.value,
                     finished_at=func.now(),
                 )
+                .returning(Game)
             )
+            game = game.scalar_one_or_none()
 
-            game = await session.execute(
-                select(Game)
-                .where(
-                    (Game.chat_id == chat_id)
-                    & (Game.state == GameFSM.GameStates.GameFinished.value)
-                )
-                .order_by(Game.started_at.desc())
-                .limit(1)
-            )
+            if not game:
+                return None
             await session.execute(
                 update(TgChat)
                 .where(TgChat.id == chat_id)
-                .values(state=ChatFSM.ChatStates.WaitingForGame)
+                .values(state=ChatFSM.ChatStates.WAITING_FOR_GAME)
             )
-            game = game.scalar_one_or_none()
-            if game:
-                await session.execute(
-                    update(UserInGame)
-                    .where(UserInGame.game_id == game.id)
-                    .values(state=PlayerFSM.PlayerStates.NotGaming.value)
-                )
-                trading_session = await session.execute(
-                    select(TradingSession)
-                    .where(
-                        (TradingSession.game_id == game.id)
-                        & (TradingSession.finished_at.is_(None))
-                    )
-                    .order_by(TradingSession.started_at.desc())
-                    .limit(1)
-                )
-                trading_session = trading_session.scalar_one_or_none()
-                if trading_session:
-                    await session.execute(
-                        update(TradingSession)
-                        .where(TradingSession.id == trading_session.id)
-                        .values(finished_at=func.now(), is_finished=True)
-                    )
 
-        return game
+            await session.execute(
+                update(UserInGame)
+                .where(UserInGame.game_id == game.id)
+                .values(state=PlayerFSM.PlayerStates.NOT_GAMING.value)
+            )
+
+            await session.execute(
+                update(TradingSession)
+                .where(
+                    (TradingSession.game_id == game.id)
+                    & (TradingSession.finished_at.is_(None))
+                )
+                .values(finished_at=func.now(), is_finished=True)
+            )
+
+            return game
 
     async def get_active_game_by_chat_id(self, chat_id: int) -> Game:
         async with self.app.database.session.begin() as session:
-            game = await session.execute(
+            return await session.scalar(
                 select(Game).where(
                     (Game.chat_id == chat_id)
-                    & (Game.state != GameFSM.GameStates.GameFinished.value)
+                    & (Game.state != GameFSM.GameStates.GAME_FINISHED.value)
                 )
             )
-        return game.scalar_one_or_none()
 
     async def create_player_by_game_user_id(
         self, game_id: int, user_custom_id: int, state: str, cur_balance: int
@@ -107,31 +93,29 @@ class GameAccessor(BaseAccessor):
 
     async def get_active_player_by_game_and_user_id(
         self, game_id: int, user_custom_id: int
-    ) -> UserInGame:
+    ) -> UserInGame | None:
         async with self.app.database.session.begin() as session:
-            existing_player = await session.execute(
+            return await session.scalar(
                 select(UserInGame).where(
                     (UserInGame.user_id == user_custom_id)
                     & (UserInGame.game_id == game_id)
                     & (
                         UserInGame.state
-                        != PlayerFSM.PlayerStates.NotGaming.value
+                        != PlayerFSM.PlayerStates.NOT_GAMING.value
                     )
                 )
             )
-        return existing_player.scalar_one_or_none()
 
-    async def get_player_by_chat_and_user_id(
+    async def get_player_by_game_and_user_id(
         self, game_id: int, user_custom_id: int
-    ) -> UserInGame:
+    ) -> UserInGame | None:
         async with self.app.database.session.begin() as session:
-            existing_player = await session.execute(
+            return await session.scalar(
                 select(UserInGame).where(
                     (UserInGame.user_id == user_custom_id)
                     & (UserInGame.game_id == game_id)
                 )
             )
-        return existing_player.scalar_one_or_none()
 
     async def set_game_state(
         self, game_id: int, state: GameFSM.GameStates
@@ -141,14 +125,14 @@ class GameAccessor(BaseAccessor):
                 update(Game).where(Game.id == game_id).values(state=state)
             )
 
-    async def get_game_state(self, game_id: int) -> Game:
+    async def get_game_state(self, game_id: int) -> str:
         async with self.app.database.session.begin() as session:
             game = await session.execute(
                 select(Game)
                 .where(Game.id == game_id)
                 .order_by(Game.started_at.desc())
             )
-        return game.scalar_one_or_none().state
+        return game.scalar_one().state
 
     async def set_player_state(
         self, player_id: int, state: PlayerFSM.PlayerStates
@@ -160,7 +144,7 @@ class GameAccessor(BaseAccessor):
                 .values(state=state)
             )
 
-    async def get_game_players(self, game_id: int) -> list[UserInGame]:
+    async def get_game_players(self, game_id: int) -> Sequence[UserInGame]:
         async with self.app.database.session() as session:
             result = await session.execute(
                 select(TgUser)
@@ -185,7 +169,7 @@ class GameAccessor(BaseAccessor):
 
     async def get_current_game_session(self, game_id) -> TradingSession:
         async with self.app.database.session.begin() as session:
-            trading_session = await session.execute(
+            return await session.scalar(
                 select(TradingSession)
                 .where(
                     (TradingSession.game_id == game_id)
@@ -194,7 +178,6 @@ class GameAccessor(BaseAccessor):
                 .order_by(TradingSession.started_at.desc())
                 .limit(1)
             )
-        return trading_session.scalar_one_or_none()
 
     async def finish_session(self, session_id: int) -> NoReturn:
         async with self.app.database.session.begin() as session:

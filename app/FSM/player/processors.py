@@ -3,5 +3,5 @@ from enum import StrEnum
 
 class PlayerProcessor:
     class PlayerStates(StrEnum):
-        NotGaming = "not gaming"
+        Not_Gaming = "not gaming"
         Gaming = "game"

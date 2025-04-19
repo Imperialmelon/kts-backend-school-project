@@ -16,11 +16,11 @@ class ChatProcessor:
     current_timers = {}
 
     @chat_message_handler(
-        text="/start_game", chat_state=ChatFSM.ChatStates.WaitingForGame
+        text="/start_game", chat_state=ChatFSM.ChatStates.WAITING_FOR_GAME
     )
     async def handle_start_game(self, message: Message, app: "Application"):
         await app.state_manager.chat_fsm.set_state(
-            message.chat.id, ChatFSM.ChatStates.GameIsGoing
+            message.chat.id, ChatFSM.ChatStates.GAME_IS_GOING
         )
         chat = await app.store.telegram_accessor.get_chat_by_telegram_id(
             message.chat.id
@@ -29,30 +29,30 @@ class ChatProcessor:
             chat.id
         )
 
-        await app.store.tg_api.tg_client.send_message(
+        await app.tg_client.send_message(
             chat_id=message.chat.id,
             text="Игра началась! Подтвердите участие:",
             reply_markup=get_participation_keyboard(),
         )
         await GameProcessor.set_timer(app, chat, current_game, timeout=5)
-        await app.store.tg_api.tg_client.send_message(
+        await app.tg_client.send_message(
             chat_id=message.chat.id,
             text="Игра началась! Таймер запущен",
         )
 
     @chat_message_handler(
-        text="/start_game", chat_state=ChatFSM.ChatStates.GameIsGoing
+        text="/start_game", chat_state=ChatFSM.ChatStates.GAME_IS_GOING
     )
     async def handle_start_game_when_game_is_going(
         self, message: Message, app: "Application"
     ):
-        await app.store.tg_api.tg_client.send_message(
+        await app.tg_client.send_message(
             chat_id=message.chat.id,
             text="Игра уже начата",
         )
 
     @chat_message_handler(
-        text="/stop_game", chat_state=ChatFSM.ChatStates.GameIsGoing
+        text="/stop_game", chat_state=ChatFSM.ChatStates.GAME_IS_GOING
     )
     async def handle_finish_game(
         self, message: Message, app: "Application"
@@ -65,10 +65,10 @@ class ChatProcessor:
         if game:
             await GameProcessor().cancel_timer(game.id)
             await app.state_manager.chat_fsm.set_state(
-                message.chat.id, ChatFSM.ChatStates.WaitingForGame
+                message.chat.id, ChatFSM.ChatStates.WAITING_FOR_GAME
             )
             await app.state_manager.game_fsm.set_state(
-                game.id, GameFSM.GameStates.GameFinished
+                game.id, GameFSM.GameStates.GAME_FINISHED
             )
 
         await app.store.tg_api.tg_client.send_message(
@@ -80,7 +80,7 @@ class ChatProcessor:
     async def process_message(
         cls, message: Message, app: "Application"
     ) -> typing.NoReturn:
-        chat_state = await app.state_manager.chat_fsm.get_state(
+        chat_state = await app.state_manager.chat_fsm.get_state_by_tg_id(
             telegram_chat_id=message.chat.id
         )
         for method in cls.__dict__.values():
@@ -101,11 +101,9 @@ class ChatProcessor:
         )
         game = await app.game_accessor.get_active_game_by_chat_id(chat.id)
         if game:
-            await GameProcessor.process_message(
-                GameProcessor, chat, game, message, app
-            )
+            await GameProcessor.process_message(chat, game, message, app)
         else:
-            await app.store.tg_api.tg_client.send_message(
+            await app.tg_client.send_message(
                 chat_id=message.chat.id,
                 text="Неизвестная команда",
             )

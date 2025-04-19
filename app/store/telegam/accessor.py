@@ -2,9 +2,6 @@ from typing import NoReturn
 
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-)
 
 from app.base.base_accessor import BaseAccessor
 from app.FSM.chat.state import ChatFSM
@@ -14,17 +11,15 @@ from app.store.database.models import TgChat, TgUser, UserInChat
 class TelegramAccessor(BaseAccessor):
     async def get_chat_by_telegram_id(self, chat_id: int) -> TgChat:
         async with self.app.database.session.begin() as session:
-            chat = await session.execute(
+            return await session.scalar(
                 select(TgChat).where(TgChat.telegram_id == chat_id)
             )
-        return chat.scalar_one_or_none()
 
     async def get_chat_by_custom_id(self, chat_id: int) -> TgChat:
         async with self.app.database.session.begin() as session:
-            chat = await session.execute(
+            return await session.scalar(
                 select(TgChat).where(TgChat.id == chat_id)
             )
-        return chat.scalar_one_or_none()
 
     async def create_chat_by_tg_id(self, chat_id: int) -> TgChat:
         async with self.app.database.session.begin() as session:
@@ -34,16 +29,13 @@ class TelegramAccessor(BaseAccessor):
 
     async def get_user_by_custom_id(self, id: int) -> TgUser:
         async with self.app.database.session.begin() as session:
-            user = await session.execute(select(TgUser).where(TgUser.id == id))
-        return user.scalar_one_or_none()
+            return await session.scalar(select(TgUser).where(TgUser.id == id))
 
     async def get_user_by_telegram_id(self, telegram_id: int) -> TgUser:
         async with self.app.database.session.begin() as session:
-            user = await session.execute(
+            return await session.scalar(
                 select(TgUser).where(TgUser.telegram_id == telegram_id)
             )
-
-        return user.scalar_one_or_none()
 
     async def create_user_by_tg_id(
         self,
@@ -66,21 +58,15 @@ class TelegramAccessor(BaseAccessor):
     async def connect_user_to_chat(
         self, chat_telegram_id: int, user_telegram_id: int
     ) -> tuple[TgUser, TgChat]:
-        async def _get_user_and_chat(
-            session: AsyncSession, telegram_id: int, chat_id: int
-        ) -> tuple[TgUser, TgChat]:
-            user = await session.execute(
-                select(TgUser).where(TgUser.telegram_id == telegram_id)
-            )
-            chat = await session.execute(
-                select(TgChat).where(TgChat.telegram_id == chat_id)
-            )
-            return user.scalar_one_or_none(), chat.scalar_one_or_none()
-
         async with self.app.database.session.begin() as session:
-            user, chat = await _get_user_and_chat(
-                session, user_telegram_id, chat_telegram_id
+            user = await session.execute(
+                select(TgUser).where(TgUser.telegram_id == user_telegram_id)
             )
+            user = user.scalar_one_or_none()
+            chat = await session.execute(
+                select(TgChat).where(TgChat.telegram_id == chat_telegram_id)
+            )
+            chat = chat.scalar_one_or_none()
             stmt = (
                 insert(UserInChat)
                 .values(user_id=user.id, chat_id=chat.id)
