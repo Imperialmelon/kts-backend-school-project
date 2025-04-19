@@ -33,6 +33,7 @@ def chat_message_handler(
 
 def game_message_handler(
     callback_data: str | None = None,
+    callback_data_startswith: str | None = None,
     game_state: GameFSM.GameStates | None = None,
 ):
     def decorator(func: Callable):
@@ -42,6 +43,7 @@ def game_message_handler(
 
         wrapper._game_handler_meta = {
             "callback_data": callback_data,
+            "callback_data_startswith": callback_data_startswith,
             "game_state": game_state,
         }
         return wrapper

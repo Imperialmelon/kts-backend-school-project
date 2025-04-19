@@ -8,11 +8,14 @@ from app.FSM.chat.state import ChatFSM
 from app.FSM.game.state import GameFSM
 from app.FSM.player.state import PlayerFSM
 from app.store.database.models import (
+    Asset,
+    AssetPriceInSession,
     Game,
     TgChat,
     TgUser,
     TradingSession,
     UserInGame,
+    UserInGameAsset,
 )
 
 
@@ -185,4 +188,68 @@ class GameAccessor(BaseAccessor):
                 update(TradingSession)
                 .where(TradingSession.id == session_id)
                 .values(finished_at=func.now(), is_finished=True)
+            )
+
+    async def get_available_assets(self, session_id: int) -> list[Asset]:
+        async with self.app.database.session() as session:
+            result = await session.execute(
+                select(Asset)
+                .join(
+                    AssetPriceInSession,
+                    AssetPriceInSession.asset_id == Asset.id,
+                )
+                .where(AssetPriceInSession.session_id == session_id)
+            )
+            return result.scalars().all()
+
+    async def get_user_assets(
+        self, user_game_id: int
+    ) -> list[tuple[Asset, int]]:
+        async with self.app.database.session() as session:
+            result = await session.execute(
+                select(Asset, UserInGameAsset.quantity)
+                .join(UserInGameAsset, UserInGameAsset.asset_id == Asset.id)
+                .where(UserInGameAsset.user_game_id == user_game_id)
+            )
+            return result.all()
+
+    async def get_asset_price(self, asset_id: int, session_id: int) -> int:
+        async with self.app.database.session() as session:
+            price = await session.scalar(
+                select(AssetPriceInSession.price).where(
+                    (AssetPriceInSession.asset_id == asset_id)
+                    & (AssetPriceInSession.session_id == session_id)
+                )
+            )
+        return price or 0
+
+    async def set_price_for_asset_in_session(
+        self, asset_id: int, session_id: int, price: int
+    ) -> NoReturn:
+        async with self.app.database.session.begin() as session:
+            price_in_session = AssetPriceInSession(
+                asset_id=asset_id,
+                session_id=session_id,
+                price=price,
+            )
+            session.add(price_in_session)
+
+    async def connect_assets_to_session(
+        self, session_id: int, price: int = 1000
+    ) -> NoReturn:
+        async with self.app.database.session.begin() as session:
+            assets = await session.execute(select(Asset))
+            assets = assets.scalars().all()
+            for asset in assets:
+                price_in_session = AssetPriceInSession(
+                    asset_id=asset.id,
+                    session_id=session_id,
+                    price=price,
+                )
+                session.add(price_in_session)
+
+    async def get_asset_by_id(self, asset_id: int) -> Asset:
+        async with self.app.database.session.begin() as session:
+            return await session.scalar(
+                select(Asset).where(Asset.id == asset_id)
             )

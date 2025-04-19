@@ -43,26 +43,6 @@ class Message:
 
 
 @dataclass
-class InlineKeyboardButton:
-    text: str
-    callback_data: str | None = None
-    url: str | None = None
-
-    class Meta:
-        unknown = EXCLUDE
-
-
-@dataclass
-class InlineKeyboardMarkup:
-    inline_keyboard: list[list[InlineKeyboardButton]] = field(
-        default_factory=list
-    )
-
-    class Meta:
-        unknown = EXCLUDE
-
-
-@dataclass
 class CallbackQuery:
     id: str
     from_: MessageFrom = field(metadata={"data_key": "from"})

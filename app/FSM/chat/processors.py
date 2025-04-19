@@ -5,11 +5,11 @@ if typing.TYPE_CHECKING:
 
 
 from app.FSM.chat.state import ChatFSM
+from app.FSM.game.messager import GameMessager
 from app.FSM.game.processors import GameProcessor
 from app.FSM.game.state import GameFSM
 from app.handlers.decorators import chat_message_handler
 from app.store.tg_api.dataclasses import Message
-from app.utils.keyboard import get_participation_keyboard
 
 
 class ChatProcessor:
@@ -28,17 +28,11 @@ class ChatProcessor:
         current_game = await app.store.game_accessor.create_game_in_chat(
             chat.id
         )
+        await GameMessager.send_participation_keyboard(app, message.chat.id)
 
-        await app.tg_client.send_message(
-            chat_id=message.chat.id,
-            text="Игра началась! Подтвердите участие:",
-            reply_markup=get_participation_keyboard(),
-        )
         await GameProcessor.set_timer(app, chat, current_game, timeout=5)
-        await app.tg_client.send_message(
-            chat_id=message.chat.id,
-            text="Игра началась! Таймер запущен",
-        )
+
+        await GameMessager.starting_timer_message(app, message.chat.id)
 
     @chat_message_handler(
         text="/start_game", chat_state=ChatFSM.ChatStates.GAME_IS_GOING
@@ -46,10 +40,7 @@ class ChatProcessor:
     async def handle_start_game_when_game_is_going(
         self, message: Message, app: "Application"
     ):
-        await app.tg_client.send_message(
-            chat_id=message.chat.id,
-            text="Игра уже начата",
-        )
+        await GameMessager.game_already_going_message(app, message.chat.id)
 
     @chat_message_handler(
         text="/stop_game", chat_state=ChatFSM.ChatStates.GAME_IS_GOING
@@ -71,10 +62,7 @@ class ChatProcessor:
                 game.id, GameFSM.GameStates.GAME_FINISHED
             )
 
-        await app.store.tg_api.tg_client.send_message(
-            chat_id=message.chat.id,
-            text="Игра окончена",
-        )
+        await GameMessager.game_over_message(app, message.chat.id)
 
     @classmethod
     async def process_message(
@@ -103,8 +91,6 @@ class ChatProcessor:
         if game:
             await GameProcessor.process_message(chat, game, message, app)
         else:
-            await app.tg_client.send_message(
-                chat_id=message.chat.id,
-                text="Неизвестная команда",
-            )
+            await GameMessager.unknwon_command_message(app, message.chat.id)
+
         return None
