@@ -4,6 +4,7 @@ from aiohttp.web import (
     View as AiohttpView,
 )
 
+from app.FSM import FSMManager, setup_fsm_manager
 from app.store import Store, setup_store
 from app.store.database.database import Database
 from app.web.config import Config, setup_config
@@ -15,6 +16,19 @@ class Application(AiohttpApplication):
     config: Config | None = None
     store: Store | None = None
     database: Database | None = None
+    state_manager: FSMManager | None = None
+
+    @property
+    def game_accessor(self):
+        return self.store.game_accessor
+
+    @property
+    def telegram_accessor(self):
+        return self.store.telegram_accessor
+
+    @property
+    def tg_client(self):
+        return self.store.tg_api.tg_client
 
 
 class Request(AiohttpRequest):
@@ -48,5 +62,6 @@ def setup_app(config_path: str) -> Application:
     setup_logging(app)
     setup_config(app, config_path)
     setup_middlewares(app)
+    setup_fsm_manager(app)
     setup_store(app)
     return app

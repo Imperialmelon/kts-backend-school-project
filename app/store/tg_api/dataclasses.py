@@ -43,10 +43,43 @@ class Message:
 
 
 @dataclass
+class InlineKeyboardButton:
+    text: str
+    callback_data: str | None = None
+    url: str | None = None
+
+    class Meta:
+        unknown = EXCLUDE
+
+
+@dataclass
+class InlineKeyboardMarkup:
+    inline_keyboard: list[list[InlineKeyboardButton]] = field(
+        default_factory=list
+    )
+
+    class Meta:
+        unknown = EXCLUDE
+
+
+@dataclass
+class CallbackQuery:
+    id: str
+    from_: MessageFrom = field(metadata={"data_key": "from"})
+    message: Message | None = None
+    chat_instance: str | None = None
+    data: str | None = None
+
+    class Meta:
+        unknown = EXCLUDE
+
+
+@dataclass
 class UpdateObj:
     update_id: int
     message: Message | None = None
     edited_message: Message | None = None
+    callback_query: CallbackQuery | None = None
 
     class Meta:
         unknown = EXCLUDE

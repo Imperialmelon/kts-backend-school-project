@@ -18,8 +18,7 @@ with open(config_path) as f:
 config.set_main_option(
     'sqlalchemy.url',
     f"postgresql+asyncpg://{db_config['user']}:{db_config['password']}@"
-    f"{db_config['host']}:{db_config['port']/{db_config['database']}}"
-
+    f"{db_config['host']}:{db_config['port']}/{db_config['database']}"
 )
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

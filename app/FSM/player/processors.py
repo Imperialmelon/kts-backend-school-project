@@ -1,0 +1,2 @@
+class PlayerProcessor:
+    pass

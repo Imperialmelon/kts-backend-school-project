@@ -1,3 +1,5 @@
+import json
+
 import aiohttp
 
 from app.clients.methods import TgMethods
@@ -52,11 +54,32 @@ class TgClient:
         return GetUpdatesResponse.Schema().load(jsn)
 
     async def send_message(
-        self, chat_id: int, text: str
+        self, chat_id: int, text: str, reply_markup: dict | None = None
     ) -> SendMessageResponse:
         self._ensure_connection()
         url = self._build_query(TgMethods.SEND_MESSAGE)
         payload = {"chat_id": chat_id, "text": text}
+        if reply_markup:
+            payload["reply_markup"] = json.dumps(reply_markup)
         async with self.session.post(url, json=payload) as resp:
             res_dict = await resp.json()
-            return SendMessageResponse.Schema().load(res_dict)
+        return SendMessageResponse.Schema().load(res_dict)
+
+    async def answer_callback_query(
+        self,
+        callback_query_id: str,
+        text: str | None = None,
+        show_alert: bool = False,
+    ) -> bool:
+        self._ensure_connection()
+        url = self._build_query(TgMethods.ANSWER_CALLBACK_QUERY)
+        payload = {
+            "callback_query_id": callback_query_id,
+            "show_alert": show_alert,
+        }
+        if text:
+            payload["text"] = text
+
+        async with self.session.post(url, json=payload) as resp:
+            result = await resp.json()
+        return result.get("ok", False)
