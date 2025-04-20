@@ -69,7 +69,7 @@ class GameAccessor(BaseAccessor):
 
             return game
 
-    async def get_active_game_by_chat_id(self, chat_id: int) -> Game:
+    async def get_active_game_by_chat_id(self, chat_id: int) -> Game | None:
         async with self.app.database.session.begin() as session:
             return await session.scalar(
                 select(Game).where(
@@ -127,12 +127,12 @@ class GameAccessor(BaseAccessor):
 
     async def get_game_state(self, game_id: int) -> str:
         async with self.app.database.session.begin() as session:
-            game = await session.execute(
+            game = await session.scalar(
                 select(Game)
                 .where(Game.id == game_id)
                 .order_by(Game.started_at.desc())
             )
-        return game.scalar_one().state
+        return game.state
 
     async def set_player_state(
         self, player_id: int, state: PlayerFSM.PlayerStates
@@ -146,15 +146,15 @@ class GameAccessor(BaseAccessor):
 
     async def get_game_players(self, game_id: int) -> Sequence[UserInGame]:
         async with self.app.database.session() as session:
-            result = await session.execute(
+            result = await session.scalars(
                 select(TgUser)
                 .join(UserInGame, UserInGame.user_id == TgUser.id)
                 .where(
                     (UserInGame.game_id == game_id)
-                    & (UserInGame.state == PlayerFSM.PlayerStates.Gaming.value)
+                    & (UserInGame.state == PlayerFSM.PlayerStates.GAMING.value)
                 )
             )
-        return result.scalars().all()
+        return result.all()
 
     async def create_trading_session(
         self, game_id: int, session_num: int
@@ -167,7 +167,7 @@ class GameAccessor(BaseAccessor):
             session.add(trading_session)
         return trading_session
 
-    async def get_current_game_session(self, game_id) -> TradingSession:
+    async def get_current_game_session(self, game_id) -> TradingSession | None:
         async with self.app.database.session.begin() as session:
             return await session.scalar(
                 select(TradingSession)

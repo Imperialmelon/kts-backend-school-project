@@ -102,7 +102,7 @@ class GameProcessor:
             )
         )
         if existing_player:
-            if existing_player.state == PlayerFSM.PlayerStates.Gaming.value:
+            if existing_player.state == PlayerFSM.PlayerStates.GAMING.value:
                 await app.tg_client.send_message(
                     chat_id=chat.telegram_id,
                     text=f"{user.first_name}, ваше участие уже подтверждено",
@@ -111,14 +111,14 @@ class GameProcessor:
 
             await app.state_manager.player_fsm.set_state(
                 existing_player.id,
-                state=PlayerFSM.PlayerStates.Gaming,
+                state=PlayerFSM.PlayerStates.GAMING,
             )
 
         else:
             await app.game_accessor.create_player_by_game_user_id(
                 game_id=current_game.id,
                 user_custom_id=user.id,
-                state=PlayerFSM.PlayerStates.Gaming.value,
+                state=PlayerFSM.PlayerStates.GAMING.value,
                 cur_balance=current_game.start_player_balance,
             )
         await app.tg_client.send_message(
