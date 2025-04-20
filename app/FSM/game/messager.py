@@ -12,7 +12,7 @@ if typing.TYPE_CHECKING:
 from app.store.database.models import Asset, UserInGame
 
 
-class GameMessager:
+class GameMessanger:
     @staticmethod
     async def send_options_keyboard(
         app: "Application", chat_id: int, player_id: int, session_id: int
@@ -51,15 +51,28 @@ class GameMessager:
 
     @staticmethod
     async def session_start_informer(
-        app: "Application", chat_id: int, session_num: int
-    ) -> typing.NoReturn:
+        app: "Application", chat_id: int, session_num: int, game_id: int
+    ) -> None:
+        player_associations = await app.game_accessor.get_game_active_players(
+            game_id
+        )
+
+        players_list = "\n".join(
+            f"• {user.first_name}: {player.cur_balance}"
+            for player, user in player_associations
+        )
+
         await app.tg_client.send_message(
             chat_id=chat_id,
-            text=f"Сессия {session_num} начата!",
+            text=(
+                f"*Сессия {session_num} начата!*\n\n"
+                f"Участники и их балансы:\n"
+                f"{players_list}"
+            ),
         )
 
     @staticmethod
-    async def unknwon_command_message(
+    async def unknown_command_message(
         app: "Application", chat_id: int
     ) -> typing.NoReturn:
         await app.tg_client.send_message(
@@ -80,9 +93,12 @@ class GameMessager:
     async def players_list_message(
         app: "Application", chat_id: int, players: list[UserInGame]
     ) -> typing.NoReturn:
+        player_list = "\n".join(
+            [f"• {player.first_name}" for player in players]
+        )
         await app.tg_client.send_message(
             chat_id=chat_id,
-            text=f"Текущие игроки:\n{players}",
+            text=f"Текущие игроки:\n{player_list}",
         )
 
     @staticmethod
@@ -95,7 +111,7 @@ class GameMessager:
         )
 
     @staticmethod
-    async def successfull_participation_message(
+    async def successful_participation_message(
         app: "Application", chat_id: int, player_name: str
     ) -> typing.NoReturn:
         await app.tg_client.send_message(
@@ -181,4 +197,13 @@ class GameMessager:
         await app.tg_client.send_message(
             chat_id=chat_id,
             text="Игра уже начата",
+        )
+
+    @staticmethod
+    async def insufficient_funds_message(
+        app: "Application", chat_id: int
+    ) -> typing.NoReturn:
+        await app.tg_client.send_message(
+            chat_id=chat_id,
+            text="нет денег",
         )

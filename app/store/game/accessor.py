@@ -33,7 +33,7 @@ class GameAccessor(BaseAccessor):
 
     async def finish_game_in_chat(self, chat_id: int) -> Game | None:
         async with self.app.database.session.begin() as session:
-            game = await session.execute(
+            game = await session.scalar(
                 update(Game)
                 .where(
                     (Game.chat_id == chat_id)
@@ -45,7 +45,6 @@ class GameAccessor(BaseAccessor):
                 )
                 .returning(Game)
             )
-            game = game.scalar_one_or_none()
 
             if not game:
                 return None
@@ -72,7 +71,7 @@ class GameAccessor(BaseAccessor):
 
             return game
 
-    async def get_active_game_by_chat_id(self, chat_id: int) -> Game:
+    async def get_active_game_by_chat_id(self, chat_id: int) -> Game | None:
         async with self.app.database.session.begin() as session:
             return await session.scalar(
                 select(Game).where(
@@ -109,6 +108,23 @@ class GameAccessor(BaseAccessor):
                 )
             )
 
+    async def get_active_player_by_game_and_user_tg_id(
+        self, game_id: int, tg_id: int
+    ) -> UserInGame | None:
+        async with self.app.database.session.begin() as session:
+            return await session.scalar(
+                select(UserInGame)
+                .join(TgUser, TgUser.id == UserInGame.user_id)
+                .where(
+                    (TgUser.telegram_id == tg_id)
+                    & (UserInGame.game_id == game_id)
+                    & (
+                        UserInGame.state
+                        != PlayerFSM.PlayerStates.NOT_GAMING.value
+                    )
+                )
+            )
+
     async def get_player_by_game_and_user_id(
         self, game_id: int, user_custom_id: int
     ) -> UserInGame | None:
@@ -130,12 +146,11 @@ class GameAccessor(BaseAccessor):
 
     async def get_game_state(self, game_id: int) -> str:
         async with self.app.database.session.begin() as session:
-            game = await session.execute(
-                select(Game)
+            return await session.scalar(
+                select(Game.state)
                 .where(Game.id == game_id)
                 .order_by(Game.started_at.desc())
             )
-        return game.scalar_one().state
 
     async def set_player_state(
         self, player_id: int, state: PlayerFSM.PlayerStates
@@ -149,7 +164,7 @@ class GameAccessor(BaseAccessor):
 
     async def get_game_players(self, game_id: int) -> Sequence[UserInGame]:
         async with self.app.database.session() as session:
-            result = await session.execute(
+            players = await session.scalars(
                 select(TgUser)
                 .join(UserInGame, UserInGame.user_id == TgUser.id)
                 .where(
@@ -157,7 +172,7 @@ class GameAccessor(BaseAccessor):
                     & (UserInGame.state == PlayerFSM.PlayerStates.Gaming.value)
                 )
             )
-        return result.scalars().all()
+        return players.all()
 
     async def create_trading_session(
         self, game_id: int, session_num: int
@@ -170,7 +185,7 @@ class GameAccessor(BaseAccessor):
             session.add(trading_session)
         return trading_session
 
-    async def get_current_game_session(self, game_id) -> TradingSession:
+    async def get_current_game_session(self, game_id) -> TradingSession | None:
         async with self.app.database.session.begin() as session:
             return await session.scalar(
                 select(TradingSession)
@@ -190,9 +205,9 @@ class GameAccessor(BaseAccessor):
                 .values(finished_at=func.now(), is_finished=True)
             )
 
-    async def get_available_assets(self, session_id: int) -> list[Asset]:
+    async def get_available_assets(self, session_id: int) -> Sequence[Asset]:
         async with self.app.database.session() as session:
-            result = await session.execute(
+            assets = await session.scalars(
                 select(Asset)
                 .join(
                     AssetPriceInSession,
@@ -200,18 +215,18 @@ class GameAccessor(BaseAccessor):
                 )
                 .where(AssetPriceInSession.session_id == session_id)
             )
-            return result.scalars().all()
+        return assets.all()
 
     async def get_user_assets(
         self, user_game_id: int
     ) -> list[tuple[Asset, int]]:
         async with self.app.database.session() as session:
-            result = await session.execute(
+            assets = await session.execute(
                 select(Asset, UserInGameAsset.quantity)
                 .join(UserInGameAsset, UserInGameAsset.asset_id == Asset.id)
                 .where(UserInGameAsset.user_game_id == user_game_id)
             )
-            return result.all()
+        return assets.all()
 
     async def get_asset_price(self, asset_id: int, session_id: int) -> int:
         async with self.app.database.session() as session:
@@ -238,8 +253,8 @@ class GameAccessor(BaseAccessor):
         self, session_id: int, price: int = 1000
     ) -> NoReturn:
         async with self.app.database.session.begin() as session:
-            assets = await session.execute(select(Asset))
-            assets = assets.scalars().all()
+            assets = await session.scalars(select(Asset))
+            assets = assets.all()
             for asset in assets:
                 price_in_session = AssetPriceInSession(
                     asset_id=asset.id,
@@ -248,8 +263,51 @@ class GameAccessor(BaseAccessor):
                 )
                 session.add(price_in_session)
 
-    async def get_asset_by_id(self, asset_id: int) -> Asset:
+    async def get_asset_by_id(self, asset_id: int) -> Asset | None:
         async with self.app.database.session.begin() as session:
             return await session.scalar(
                 select(Asset).where(Asset.id == asset_id)
             )
+
+    async def get_game_active_players(
+        self, game_id: int
+    ) -> Sequence[tuple[UserInGame, TgUser]]:
+        async with self.app.database.session.begin() as session:
+            result = await session.execute(
+                select(UserInGame, TgUser)
+                .join(TgUser, UserInGame.user_id == TgUser.id)
+                .where(
+                    (UserInGame.game_id == game_id)
+                    & (UserInGame.state == PlayerFSM.PlayerStates.Gaming.value)
+                )
+            )
+        return result.all()
+
+    async def asset_purchase(
+        self,
+        player_id: int,
+        asset_id: int,
+        asset_price: int,
+        asset_exists: bool,
+    ) -> NoReturn:
+        async with self.app.database.session.begin() as session:
+            if asset_exists:
+                await session.execute(
+                    update(UserInGameAsset)
+                    .where(
+                        (UserInGameAsset.user_game_id == player_id)
+                        & (UserInGameAsset.asset_id == asset_id)
+                    )
+                    .values(quantity=UserInGameAsset.quantity + 1)
+                )
+            else:
+                new_asset = UserInGameAsset(
+                    user_game_id=player_id, asset_id=asset_id, quantity=1
+                )
+                session.add(new_asset)
+
+        await session.execute(
+            update(UserInGame)
+            .where(UserInGame.id == player_id)
+            .values(cur_balance=UserInGame.cur_balance - asset_price)
+        )

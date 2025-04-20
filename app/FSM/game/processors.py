@@ -10,7 +10,7 @@ from app.utils.timer import timer
 
 if typing.TYPE_CHECKING:
     from app.web.app import Application
-from app.FSM.game.messager import GameMessager
+from app.FSM.game.messager import GameMessanger
 
 
 class GameProcessor:
@@ -20,17 +20,14 @@ class GameProcessor:
     async def handle_timer_end(app: "Application", chat: TgChat, game: Game):
         if game.state == GameFSM.GameStates.WAITING_FOR_CONFIRMATION:
             players = await app.game_accessor.get_game_players(game.id)
-            player_list = "\n".join(
-                [f"• {player.first_name}" for player in players]
-            )
 
-            if player_list:
-                await GameMessager.players_list_message(
-                    app, chat.telegram_id, player_list
+            if players:
+                await GameMessanger.players_list_message(
+                    app, chat.telegram_id, players
                 )
 
             if len(players) < 1:
-                await GameMessager.not_enough_players_message(
+                await GameMessanger.not_enough_players_message(
                     app, chat.telegram_id
                 )
                 await app.game_accessor.finish_game_in_chat(chat.id)
@@ -41,12 +38,12 @@ class GameProcessor:
                 trading_session = (
                     await app.game_accessor.create_trading_session(game.id, 1)
                 )
-                await GameMessager.session_start_informer(
-                    app, chat.telegram_id, 1
+                await GameMessanger.session_start_informer(
+                    app, chat.telegram_id, 1, game.id
                 )
 
                 for player in players:
-                    await GameMessager.send_options_keyboard(
+                    await GameMessanger.send_options_keyboard(
                         app, chat.telegram_id, player.id, trading_session.id
                     )
 
@@ -90,7 +87,7 @@ class GameProcessor:
 
         if existing_player:
             if existing_player.state == PlayerFSM.PlayerStates.Gaming.value:
-                await GameMessager.player_already_participating_message(
+                await GameMessanger.player_already_participating_message(
                     app, chat.telegram_id, user.first_name
                 )
 
@@ -107,7 +104,7 @@ class GameProcessor:
                 state=PlayerFSM.PlayerStates.Gaming.value,
                 cur_balance=current_game.start_player_balance,
             )
-        await GameMessager.successfull_participation_message(
+        await GameMessanger.successful_participation_message(
             app, chat.telegram_id, user.first_name
         )
 
@@ -134,13 +131,14 @@ class GameProcessor:
             await app.state_manager.player_fsm.set_state(
                 player.id, state=PlayerFSM.PlayerStates.NOT_GAMING
             )
-            await GameMessager.cancel_participation_message(
+            await GameMessanger.cancel_participation_message(
                 app, chat.telegram_id, user.first_name
             )
 
     @game_message_handler(
         callback_data_startswith="assets_available_",
         game_state=GameFSM.GameStates.GAME_GOING,
+        player_state=PlayerFSM.PlayerStates.Gaming,
     )
     async def handle_show_available_assets(
         self,
@@ -153,19 +151,20 @@ class GameProcessor:
         assets = await app.game_accessor.get_available_assets(session_id)
 
         if not assets:
-            await GameMessager.no_available_assets_message(
+            await GameMessanger.no_available_assets_message(
                 app, chat.telegram_id
             )
 
             return
 
-        await GameMessager.send_available_stocks_keyboard(
+        await GameMessanger.send_available_stocks_keyboard(
             app, chat.telegram_id, session_id, assets
         )
 
     @game_message_handler(
         callback_data_startswith="assets_my_",
         game_state=GameFSM.GameStates.GAME_GOING,
+        player_state=PlayerFSM.PlayerStates.Gaming,
     )
     async def handle_show_user_assets(
         self,
@@ -180,23 +179,24 @@ class GameProcessor:
         )
 
         if not user_game:
-            await GameMessager.no_player_found_message(app, chat.telegram_id)
+            await GameMessanger.no_player_found_message(app, chat.telegram_id)
 
             return
 
         assets = await app.game_accessor.get_user_assets(user_game.id)
 
         if not assets:
-            await GameMessager.player_has_no_assets_message(
+            await GameMessanger.player_has_no_assets_message(
                 app, chat.telegram_id
             )
 
             return
-        await GameMessager.player_assets_message(app, chat.telegram_id, assets)
+        await GameMessanger.player_assets_message(app, chat.telegram_id, assets)
 
     @game_message_handler(
         callback_data_startswith="buy_asset_",
         game_state=GameFSM.GameStates.GAME_GOING,
+        player_state=PlayerFSM.PlayerStates.Gaming,
     )
     async def buy_stock(
         self,
@@ -204,10 +204,33 @@ class GameProcessor:
         current_game: Game,
         callback_query: CallbackQuery,
         app: "Application",
-    ):
+    ) -> None:
+        player = (
+            await app.game_accessor.get_active_player_by_game_and_user_tg_id(
+                current_game.id, callback_query.message.from_.id
+            )
+        )
+
         asset_id = int(callback_query.data.split("_")[2])
+        session_id = int(callback_query.data.split("_")[3])
+        asset_price = await app.game_accessor.get_asset_price(
+            asset_id, session_id
+        )
         asset = await app.game_accessor.get_asset_by_id(asset_id)
-        await GameMessager.successful_purchase_message(
+        if player.cur_balance < asset_price:
+            GameMessanger.insufficient_funds_message(app, chat.telegram_id)
+            return
+        players_assets = await app.game_accessor.get_user_assets(player.id)
+        asset_exists = False
+        for existing_asset, _ in players_assets:
+            if existing_asset.id == asset_id:
+                asset_exists = True
+                break
+
+        await app.game_accessor.asset_purchase(
+            player.id, asset_id, asset_price, asset_exists
+        )
+        await GameMessanger.successful_purchase_message(
             app, chat.telegram_id, asset.title, callback_query.from_.first_name
         )
 
@@ -245,15 +268,21 @@ class GameProcessor:
         app: "Application",
     ) -> None:
         if not isinstance(update, CallbackQuery):
-            await GameMessager.unknwon_command_message(chat.telegram_id)
+            await GameMessanger.unknown_command_message(app, chat.telegram_id)
             return None
 
         message = Message(
             message_id=update.message.message_id,
-            from_=update.from_,
+            from_=update.message.from_.id,
             chat=update.message.chat,
             text=None,
             data=update.data,
+        )
+
+        sender = (
+            await app.game_accessor.get_active_player_by_game_and_user_tg_id(
+                current_game.id, message.from_
+            )
         )
 
         for method in cls.__dict__.values():
@@ -276,11 +305,24 @@ class GameProcessor:
                     or current_game.state == meta["game_state"]
                 )
 
-                if game_state_match and (
-                    callback_match or callback_start_match
+                requires_player_state_check = meta["player_state"] is not None
+
+                if requires_player_state_check and not sender:
+                    continue
+
+                player_state_match = True
+                if requires_player_state_check:
+                    player_state_match = (
+                        meta["player_state"] is None
+                        or sender.state == meta["player_state"]
+                    )
+
+                if (
+                    game_state_match
+                    and (not requires_player_state_check or player_state_match)
+                    and (callback_match or callback_start_match)
                 ):
                     return await method(cls(), chat, current_game, update, app)
 
-        await GameMessager.unknwon_command_message(chat.telegram_id)
-
+        await GameMessanger.unknown_command_message(app, chat.telegram_id)
         return None

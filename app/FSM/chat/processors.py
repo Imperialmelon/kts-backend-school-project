@@ -5,7 +5,7 @@ if typing.TYPE_CHECKING:
 
 
 from app.FSM.chat.state import ChatFSM
-from app.FSM.game.messager import GameMessager
+from app.FSM.game.messager import GameMessanger
 from app.FSM.game.processors import GameProcessor
 from app.FSM.game.state import GameFSM
 from app.handlers.decorators import chat_message_handler
@@ -28,11 +28,11 @@ class ChatProcessor:
         current_game = await app.store.game_accessor.create_game_in_chat(
             chat.id
         )
-        await GameMessager.send_participation_keyboard(app, message.chat.id)
+        await GameMessanger.send_participation_keyboard(app, message.chat.id)
 
         await GameProcessor.set_timer(app, chat, current_game, timeout=5)
 
-        await GameMessager.starting_timer_message(app, message.chat.id)
+        await GameMessanger.starting_timer_message(app, message.chat.id)
 
     @chat_message_handler(
         text="/start_game", chat_state=ChatFSM.ChatStates.GAME_IS_GOING
@@ -40,7 +40,7 @@ class ChatProcessor:
     async def handle_start_game_when_game_is_going(
         self, message: Message, app: "Application"
     ):
-        await GameMessager.game_already_going_message(app, message.chat.id)
+        await GameMessanger.game_already_going_message(app, message.chat.id)
 
     @chat_message_handler(
         text="/stop_game", chat_state=ChatFSM.ChatStates.GAME_IS_GOING
@@ -62,7 +62,7 @@ class ChatProcessor:
                 game.id, GameFSM.GameStates.GAME_FINISHED
             )
 
-        await GameMessager.game_over_message(app, message.chat.id)
+        await GameMessanger.game_over_message(app, message.chat.id)
 
     @classmethod
     async def process_message(
@@ -91,6 +91,6 @@ class ChatProcessor:
         if game:
             await GameProcessor.process_message(chat, game, message, app)
         else:
-            await GameMessager.unknwon_command_message(app, message.chat.id)
+            await GameMessanger.unknown_command_message(app, message.chat.id)
 
         return None

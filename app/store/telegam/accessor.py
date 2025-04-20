@@ -59,14 +59,14 @@ class TelegramAccessor(BaseAccessor):
         self, chat_telegram_id: int, user_telegram_id: int
     ) -> tuple[TgUser, TgChat]:
         async with self.app.database.session.begin() as session:
-            user = await session.execute(
+            user = await session.scalar(
                 select(TgUser).where(TgUser.telegram_id == user_telegram_id)
             )
-            user = user.scalar_one_or_none()
-            chat = await session.execute(
+
+            chat = await session.scalar(
                 select(TgChat).where(TgChat.telegram_id == chat_telegram_id)
             )
-            chat = chat.scalar_one_or_none()
+
             stmt = (
                 insert(UserInChat)
                 .values(user_id=user.id, chat_id=chat.id)
