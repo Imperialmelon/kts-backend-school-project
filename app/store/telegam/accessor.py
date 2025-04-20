@@ -9,29 +9,29 @@ from app.store.database.models import TgChat, TgUser, UserInChat
 
 
 class TelegramAccessor(BaseAccessor):
-    async def get_chat_by_telegram_id(self, chat_id: int) -> TgChat:
+    async def get_chat_by_telegram_id(self, chat_id: int) -> TgChat | None:
         async with self.app.database.session.begin() as session:
             return await session.scalar(
                 select(TgChat).where(TgChat.telegram_id == chat_id)
             )
 
-    async def get_chat_by_custom_id(self, chat_id: int) -> TgChat:
+    async def get_chat_by_custom_id(self, chat_id: int) -> TgChat | None:
         async with self.app.database.session.begin() as session:
             return await session.scalar(
                 select(TgChat).where(TgChat.id == chat_id)
             )
 
-    async def create_chat_by_tg_id(self, chat_id: int) -> TgChat:
+    async def create_chat_by_tg_id(self, chat_id: int) -> TgChat | None:
         async with self.app.database.session.begin() as session:
             chat = TgChat(telegram_id=chat_id)
             session.add(chat)
         return chat
 
-    async def get_user_by_custom_id(self, id: int) -> TgUser:
+    async def get_user_by_custom_id(self, id: int) -> TgUser | None:
         async with self.app.database.session.begin() as session:
             return await session.scalar(select(TgUser).where(TgUser.id == id))
 
-    async def get_user_by_telegram_id(self, telegram_id: int) -> TgUser:
+    async def get_user_by_telegram_id(self, telegram_id: int) -> TgUser | None:
         async with self.app.database.session.begin() as session:
             return await session.scalar(
                 select(TgUser).where(TgUser.telegram_id == telegram_id)
