@@ -1,9 +1,13 @@
 import typing
 
+from sqlalchemy import Sequence
+
 from app.utils.keyboard import (
     get_available_stocks_keyboard,
     get_options_keyboard,
     get_participation_keyboard,
+    get_player_assets_keyboard,
+    get_selling_keyboard,
 )
 
 if typing.TYPE_CHECKING:
@@ -12,15 +16,16 @@ if typing.TYPE_CHECKING:
 from app.store.database.models import Asset, UserInGame
 
 
-class GameMessanger:
+class GameMessenger:
     @staticmethod
     async def send_options_keyboard(
         app: "Application", chat_id: int, player_id: int, session_id: int
     ) -> typing.NoReturn:
+        user = await app.game_accessor.get_user_by_id(player_id)
         keyboard = get_options_keyboard(player_id, session_id)
         await app.tg_client.send_message(
             chat_id=chat_id,
-            text="Выберите действие:",
+            text=f"{user.first_name}, выберите действие:",
             reply_markup=keyboard,
         )
 
@@ -91,7 +96,7 @@ class GameMessanger:
 
     @staticmethod
     async def players_list_message(
-        app: "Application", chat_id: int, players: list[UserInGame]
+        app: "Application", chat_id: int, players: Sequence[UserInGame]
     ) -> typing.NoReturn:
         player_list = "\n".join(
             [f"• {player.first_name}" for player in players]
@@ -164,13 +169,37 @@ class GameMessanger:
 
     @staticmethod
     async def player_assets_message(
-        app: "Application", chat_id: int, assets: list[tuple[Asset, int]]
+        app: "Application",
+        chat_id: int,
+        assets: list[tuple[Asset, int]],
+        session_id: int,
+        player_id: int,
     ) -> typing.NoReturn:
-        message = "Ваши активы:\n" + "\n".join(
-            f"{asset.title} - {quantity} шт." for asset, quantity in assets
+        user = await app.game_accessor.get_user_by_id(player_id)
+        keyboard = get_player_assets_keyboard(assets, session_id)
+
+        await app.tg_client.send_message(
+            chat_id=chat_id,
+            text=f"{user.first_name}, ваши активы:",
+            reply_markup=keyboard,
         )
 
-        await app.tg_client.send_message(chat_id=chat_id, text=message)
+    @staticmethod
+    async def selling_menu_message(
+        app: "Application",
+        chat_id: int,
+        asset: Asset,
+        session_id: int,
+        user_id: int,
+        price: int,
+    ) -> typing.NoReturn:
+        keyboard = get_selling_keyboard(user_id, asset.id, session_id)
+
+        await app.tg_client.send_message(
+            chat_id=chat_id,
+            text=f"{asset.title}\nТекущая цена: {price}",
+            reply_markup=keyboard,
+        )
 
     @staticmethod
     async def game_over_message(
@@ -206,4 +235,31 @@ class GameMessanger:
         await app.tg_client.send_message(
             chat_id=chat_id,
             text="нет денег",
+        )
+
+    @staticmethod
+    async def not_your_assets_message(
+        app: "Application", chat_id: int
+    ) -> typing.NoReturn:
+        await app.tg_client.send_message(
+            chat_id=chat_id,
+            text="Это не ваши активы",
+        )
+
+    @staticmethod
+    async def successful_sale_message(
+        app: "Application", chat_id: int, asset_title: str, player_name: str
+    ) -> None:
+        await app.tg_client.send_message(
+            chat_id=chat_id,
+            text=f"Игрок {player_name} продал {asset_title}",
+        )
+
+    @staticmethod
+    async def no_active_for_sale_message(
+        app: "Application", chat_id: int
+    ) -> typing.NoReturn:
+        await app.tg_client.send_message(
+            chat_id=chat_id,
+            text="Актив отсутствует",
         )
