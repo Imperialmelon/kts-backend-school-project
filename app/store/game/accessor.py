@@ -147,13 +147,11 @@ class GameAccessor(BaseAccessor):
 
     async def get_game_state(self, game_id: int) -> str:
         async with self.app.database.session.begin() as session:
-
             return await session.scalar(
                 select(Game.state)
                 .where(Game.id == game_id)
                 .order_by(Game.started_at.desc())
             )
-
 
     async def set_player_state(
         self, player_id: int, state: PlayerFSM.PlayerStates
@@ -167,9 +165,7 @@ class GameAccessor(BaseAccessor):
 
     async def get_game_players(self, game_id: int) -> Sequence[TgUser]:
         async with self.app.database.session() as session:
-
             players = await session.scalars(
-
                 select(TgUser)
                 .join(UserInGame, UserInGame.user_id == TgUser.id)
                 .where(

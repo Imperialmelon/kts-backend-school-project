@@ -7,11 +7,8 @@ if typing.TYPE_CHECKING:
 
 class PlayerFSM:
     class PlayerStates(StrEnum):
-
         NOT_GAMING = "not_gaming"
         GAMING = "gaming"
-
-
 
     def __init__(self, app: "Application"):
         self.app = app

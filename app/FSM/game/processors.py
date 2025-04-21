@@ -181,10 +181,8 @@ class GameProcessor:
 
         if existing_player:
             if existing_player.state == PlayerFSM.PlayerStates.GAMING.value:
-
                 await GameMessenger.player_already_participating_message(
                     app, chat.telegram_id, user.first_name
-
                 )
 
                 return
