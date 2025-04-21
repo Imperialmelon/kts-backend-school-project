@@ -242,14 +242,11 @@ class GameAccessor(BaseAccessor):
     async def set_price_for_asset_in_session(
         self, session_id: int, min_price: int = 1000, max_price: int = 10000
     ) -> NoReturn:
-        
         async with self.app.database.session.begin() as session:
-            assets = session.scalars(
-                select(Asset.id)
-            )
+            assets = session.scalars(select(Asset.id))
             assets = assets.all()
             for asset in assets:
-                cur_price  = random.randint(min_price, max_price)
+                cur_price = random.randint(min_price, max_price)
                 price_in_session = AssetPriceInSession(
                     asset_id=asset.id,
                     session_id=session_id,
@@ -265,7 +262,7 @@ class GameAccessor(BaseAccessor):
             assets = await session.scalars(select(Asset))
             assets = assets.all()
             for asset in assets:
-                cur_price  = random.randint(min_price, max_price)
+                cur_price = random.randint(min_price, max_price)
                 price_in_session = AssetPriceInSession(
                     asset_id=asset.id,
                     session_id=session_id,
@@ -301,7 +298,6 @@ class GameAccessor(BaseAccessor):
         asset_exists: bool,
     ) -> NoReturn:
         async with self.app.database.session.begin() as session:
-            print(player_id, asset_id, asset_price)
             if asset_exists:
                 await session.execute(
                     update(UserInGameAsset)
@@ -334,7 +330,6 @@ class GameAccessor(BaseAccessor):
     async def asset_sale(
         self, player_id: int, asset_id: int, asset_price: int
     ) -> NoReturn:
-        print(player_id)
         async with self.app.database.session.begin() as session:
             user_asset = await session.scalar(
                 select(UserInGameAsset).where(
