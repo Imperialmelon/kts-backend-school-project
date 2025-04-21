@@ -173,7 +173,7 @@ class GameProcessor:
         callback_query: CallbackQuery,
         app: "Application",
     ):
-        sender = await app.game_accessor.get_user_by_tg_id(
+        sender = await app.telegram_accessor.get_user_by_telegram_id(
             callback_query.from_.id
         )
         user_id = int(callback_query.data.split("_")[2])
@@ -222,7 +222,7 @@ class GameProcessor:
 
         asset = await app.game_accessor.get_asset_by_id(asset_id)
         price = await app.game_accessor.get_asset_price(asset_id, session_id)
-        user = await app.game_accessor.get_user_by_tg_id(
+        user = await app.telegram_accessor.get_chat_by_telegram_id(
             callback_query.from_.id
         )
 
@@ -247,6 +247,7 @@ class GameProcessor:
                 current_game.id, callback_query.from_.id
             )
         )
+        
 
         asset_id = int(callback_query.data.split("_")[2])
         session_id = int(callback_query.data.split("_")[3])
@@ -255,7 +256,7 @@ class GameProcessor:
         )
         asset = await app.game_accessor.get_asset_by_id(asset_id)
         if player.cur_balance < asset_price:
-            GameMessenger.insufficient_funds_message(app, chat.telegram_id)
+            await GameMessenger.insufficient_funds_message(app, chat.telegram_id, player.id)
             return
         players_assets = await app.game_accessor.get_user_assets(player.id)
         asset_exists = False
@@ -284,16 +285,21 @@ class GameProcessor:
         app: "Application",
     ) -> None:
         try:
-            alias = app.game_accessor.get_user_by_tg_id
-            player = await alias(current_game.id, callback_query.from_.id)
+            alias = app.telegram_accessor.get_user_by_telegram_id
+            user = await alias(callback_query.from_.id)
+            player = await app.game_accessor.get_active_player_by_game_and_user_tg_id(
+                current_game.id, user.telegram_id
+            )
+            
             asset_id = int(callback_query.data.split("_")[2])
             session_id = int(callback_query.data.split("_")[3])
             asset_price = await app.game_accessor.get_asset_price(
                 asset_id, session_id
             )
             asset = await app.game_accessor.get_asset_by_id(asset_id)
-
+            print(player.id, asset_id, asset_price)
             await app.game_accessor.asset_sale(player.id, asset_id, asset_price)
+            print(player.id, asset_id, asset_price)
             await GameMessenger.successful_sale_message(
                 app,
                 chat.telegram_id,

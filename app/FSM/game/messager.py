@@ -21,7 +21,7 @@ class GameMessenger:
     async def send_options_keyboard(
         app: "Application", chat_id: int, player_id: int, session_id: int
     ) -> typing.NoReturn:
-        user = await app.game_accessor.get_user_by_id(player_id)
+        user = await app.telegram_accessor.get_user_by_custom_id(player_id)
         keyboard = get_options_keyboard(player_id, session_id)
         await app.tg_client.send_message(
             chat_id=chat_id,
@@ -175,7 +175,7 @@ class GameMessenger:
         session_id: int,
         player_id: int,
     ) -> typing.NoReturn:
-        user = await app.game_accessor.get_user_by_id(player_id)
+        user = await app.telegram_accessor.get_user_by_custom_id(player_id)
         keyboard = get_player_assets_keyboard(assets, session_id)
 
         await app.tg_client.send_message(
@@ -230,11 +230,12 @@ class GameMessenger:
 
     @staticmethod
     async def insufficient_funds_message(
-        app: "Application", chat_id: int
+        app: "Application", chat_id: int, player_id: int
     ) -> typing.NoReturn:
+        user = await app.game_accessor.get_user_by_player_id(player_id)
         await app.tg_client.send_message(
             chat_id=chat_id,
-            text="нет денег",
+            text=f"{user.first_name}, у вас не хватает баланса для покупки",
         )
 
     @staticmethod

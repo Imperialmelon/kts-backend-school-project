@@ -37,11 +37,10 @@ def get_participation_keyboard() -> dict:
 async def get_available_stocks_keyboard(
     app: "Application", assets: Sequence[Asset], session_id: int
 ) -> dict:
-    price = await app.game_accessor.get_asset_price(session_id, session_id)
     buttons = [
         [
             {
-                "text": f"{asset.title}" f" - " f"{price}",
+                "text": f"{asset.title}" f" - " f"{await app.game_accessor.get_asset_price(asset.id, session_id)}",
                 "callback_data": f"buy_asset_{asset.id}_{session_id}",
             }
         ]
