@@ -56,17 +56,12 @@ class GameMessenger:
 
     @staticmethod
     async def session_start_informer(
-        app: "Application", chat_id: int, session_num: int, game_id: int
+        app: "Application",
+        chat_id: int,
+        players_list: str,
+        player_associations: Sequence[UserInGame],
+        session_num: int,
     ) -> None:
-        player_associations = await app.game_accessor.get_game_active_players(
-            game_id
-        )
-
-        players_list = "\n".join(
-            f"• {user.first_name}: {player.cur_balance}"
-            for player, user in player_associations
-        )
-
         await app.tg_client.send_message(
             chat_id=chat_id,
             text=(
@@ -202,12 +197,12 @@ class GameMessenger:
         )
 
     @staticmethod
-    async def game_over_message(
+    async def game_killed_message_(
         app: "Application", chat_id: int
     ) -> typing.NoReturn:
         await app.store.tg_api.tg_client.send_message(
             chat_id=chat_id,
-            text="Игра окончена",
+            text="Игра была принудительно окончена",
         )
 
     @staticmethod
@@ -253,7 +248,7 @@ class GameMessenger:
     ) -> None:
         await app.tg_client.send_message(
             chat_id=chat_id,
-            text=f"Игрок {player_name} продал {asset_title}",
+            text=f"Игрок {player_name} продал {asset_title} 🐊",
         )
 
     @staticmethod
@@ -263,4 +258,31 @@ class GameMessenger:
         await app.tg_client.send_message(
             chat_id=chat_id,
             text="Актив отсутствует",
+        )
+
+    @staticmethod
+    async def player_eliminated_message(
+        app: "Application", chat_id: int, player_name: str
+    ) -> None:
+        await app.tg_client.send_message(
+            chat_id=chat_id,
+            text=f"Игрок {player_name} выбывает из игры",
+        )
+
+    @staticmethod
+    async def game_over_message(
+        app: "Application", chat_id: int, winner_name: str
+    ) -> None:
+        await app.tg_client.send_message(
+            chat_id=chat_id,
+            text=f"Игра окончена! Победитель: {winner_name} 😎🎉🥳",
+        )
+
+    @staticmethod
+    async def session_already_finished_message(
+        app: "Application", chat_id: int
+    ) -> None:
+        await app.tg_client.send_message(
+            chat_id=chat_id,
+            text="Сессия уже завершена",
         )

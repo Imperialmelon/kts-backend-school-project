@@ -30,7 +30,7 @@ class ChatProcessor:
         )
         await GameMessenger.send_participation_keyboard(app, message.chat.id)
 
-        await GameProcessor.set_timer(app, chat, current_game, timeout=20)
+        await GameProcessor.set_timer(app, chat, current_game, timeout=5)
 
     @chat_message_handler(
         text="/start_game", chat_state=ChatFSM.ChatStates.GAME_IS_GOING
@@ -60,7 +60,7 @@ class ChatProcessor:
                 game.id, GameFSM.GameStates.GAME_FINISHED
             )
 
-        await GameMessenger.game_over_message(app, message.chat.id)
+        await GameMessenger.game_killed_message_(app, message.chat.id)
 
     @classmethod
     async def process_message(

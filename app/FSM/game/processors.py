@@ -17,39 +17,133 @@ class GameProcessor:
     _timers = {}
 
     @staticmethod
-    async def handle_timer_end(app: "Application", chat: TgChat, game: Game):
-        if game.state == GameFSM.GameStates.WAITING_FOR_CONFIRMATION:
-            players = await app.game_accessor.get_game_players(game.id)
+    async def confirmation_timer_end_handler(
+        app: "Application", chat: TgChat, game: Game
+    ):
+        players = await app.game_accessor.get_game_players(game.id)
+        if players:
+            await GameMessenger.players_list_message(
+                app, chat.telegram_id, players
+            )
 
-            if players:
-                await GameMessenger.players_list_message(
-                    app, chat.telegram_id, players
+        if len(players) < 1:
+            await GameMessenger.not_enough_players_message(
+                app, chat.telegram_id
+            )
+            await app.game_accessor.finish_game_in_chat(chat.id)
+        else:
+            await app.game_accessor.set_game_state(
+                game.id, state=GameFSM.GameStates.GAME_GOING
+            )
+            game = await app.game_accessor.get_game_by_id(game.id)
+
+            trading_session = await app.game_accessor.create_trading_session(
+                game.id, 1
+            )
+
+            player_associations = (
+                await app.game_accessor.get_game_active_players(game.id)
+            )
+
+            players_list = "\n".join(
+                f"• {user.first_name}: {player.cur_balance}"
+                for player, user in player_associations
+            )
+
+            await GameMessenger.session_start_informer(
+                app, chat.telegram_id, players_list, player_associations, 1
+            )
+
+            for player in players:
+                await GameMessenger.send_options_keyboard(
+                    app, chat.telegram_id, player.id, trading_session.id
                 )
 
-            if len(players) < 1:
-                await GameMessenger.not_enough_players_message(
-                    app, chat.telegram_id
-                )
-                await app.game_accessor.finish_game_in_chat(chat.id)
-            else:
-                await app.game_accessor.set_game_state(
-                    game.id, state=GameFSM.GameStates.GAME_GOING
-                )
-                trading_session = (
-                    await app.game_accessor.create_trading_session(game.id, 1)
-                )
-                await GameMessenger.session_start_informer(
-                    app, chat.telegram_id, 1, game.id
-                )
+            await app.game_accessor.connect_assets_to_session(
+                trading_session.id
+            )
+            await GameProcessor.set_timer(app, chat, game, timeout=10)
 
-                for player in players:
-                    await GameMessenger.send_options_keyboard(
-                        app, chat.telegram_id, player.id, trading_session.id
-                    )
+    @staticmethod
+    async def session_timer_end_handler(
+        app: "Application", chat: TgChat, game: Game
+    ):
+        current_session = await app.game_accessor.get_current_game_session(
+            game.id
+        )
 
-                await app.game_accessor.connect_assets_to_session(
-                    trading_session.id
-                )
+        if not current_session:
+            return
+
+        await app.game_accessor.finish_session(current_session.id)
+
+        if current_session.session_num >= game.session_limit:
+            players = await app.game_accessor.get_game_active_players(game.id)
+            players = [player[0] for player in players]
+            winner = max(players, key=lambda p: p.cur_balance)
+            winnder_user = await app.telegram_accessor.get_user_by_custom_id(
+                winner.user_id
+            )
+
+            await GameMessenger.game_over_message(
+                app, chat.telegram_id, winnder_user.first_name
+            )
+            await app.game_accessor.finish_game_in_chat(chat.id)
+            return
+
+        players = await app.game_accessor.get_game_active_players(game.id)
+        players = [player[0] for player in players]
+        if len(players) >= 2:
+            min_balance_player = min(players, key=lambda p: p.cur_balance)
+            loser = await app.telegram_accessor.get_user_by_custom_id(
+                min_balance_player.user_id
+            )
+            await app.state_manager.player_fsm.set_state(
+                min_balance_player.id,
+                state=PlayerFSM.PlayerStates.NOT_GAMING,
+            )
+            await GameMessenger.player_eliminated_message(
+                app, chat.telegram_id, loser.first_name
+            )
+
+        active_players = await app.game_accessor.get_game_players(game.id)
+        if len(active_players) < 2:
+            await GameMessenger.not_enough_players_message(
+                app, chat.telegram_id
+            )
+            await app.game_accessor.finish_game_in_chat(chat.id)
+            return
+
+        new_session_num = current_session.session_num + 1
+        trading_session = await app.game_accessor.create_trading_session(
+            game.id, new_session_num
+        )
+
+        await app.game_accessor.connect_assets_to_session(trading_session.id)
+
+        player_associations = await app.game_accessor.get_game_active_players(
+            game.id
+        )
+
+        players_list = "\n".join(
+            f"• {user.first_name}: {player.cur_balance}"
+            for player, user in player_associations
+        )
+
+        await GameMessenger.session_start_informer(
+            app,
+            chat.telegram_id,
+            players_list,
+            player_associations,
+            new_session_num,
+        )
+
+        for player in active_players:
+            await GameMessenger.send_options_keyboard(
+                app, chat.telegram_id, player.id, trading_session.id
+            )
+
+        await GameProcessor.set_timer(app, chat, game, timeout=10)
 
     @game_message_handler(
         callback_data="confirm",
@@ -148,6 +242,14 @@ class GameProcessor:
         app: "Application",
     ):
         session_id = int(callback_query.data.split("_")[2])
+        current_session = await app.game_accessor.get_current_game_session(
+            current_game.id
+        )
+        if current_session.id != session_id:
+            await GameMessenger.session_already_finished_message(
+                app, chat.telegram_id
+            )
+            return
         assets = await app.game_accessor.get_available_assets(session_id)
 
         if not assets:
@@ -220,6 +322,14 @@ class GameProcessor:
         asset_id = int(callback_query.data.split("_")[2])
         session_id = int(callback_query.data.split("_")[3])
 
+        current_session = await app.game_accessor.get_current_game_session(
+            current_game.id
+        )
+        if current_session.id != session_id:
+            await GameMessenger.session_already_finished_message(
+                app, chat.telegram_id
+            )
+            return
         asset = await app.game_accessor.get_asset_by_id(asset_id)
         price = await app.game_accessor.get_asset_price(asset_id, session_id)
         user = await app.telegram_accessor.get_chat_by_telegram_id(
@@ -250,6 +360,14 @@ class GameProcessor:
 
         asset_id = int(callback_query.data.split("_")[2])
         session_id = int(callback_query.data.split("_")[3])
+        current_session = await app.game_accessor.get_current_game_session(
+            current_game.id
+        )
+        if current_session.id != session_id:
+            await GameMessenger.session_already_finished_message(
+                app, chat.telegram_id
+            )
+            return
         asset_price = await app.game_accessor.get_asset_price(
             asset_id, session_id
         )
@@ -319,7 +437,14 @@ class GameProcessor:
         async def _game_timer():
             try:
                 await timer(timeout, app, chat)
-                await GameProcessor.handle_timer_end(app, chat, game)
+                if game.state == GameFSM.GameStates.WAITING_FOR_CONFIRMATION:
+                    await GameProcessor.confirmation_timer_end_handler(
+                        app, chat, game
+                    )
+                else:
+                    await GameProcessor.session_timer_end_handler(
+                        app, chat, game
+                    )
             except asyncio.CancelledError:
                 pass
             finally:

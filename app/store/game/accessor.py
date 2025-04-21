@@ -163,7 +163,7 @@ class GameAccessor(BaseAccessor):
                 .values(state=state)
             )
 
-    async def get_game_players(self, game_id: int) -> Sequence[UserInGame]:
+    async def get_game_players(self, game_id: int) -> Sequence[TgUser]:
         async with self.app.database.session() as session:
             players = await session.scalars(
                 select(TgUser)
@@ -243,7 +243,7 @@ class GameAccessor(BaseAccessor):
         self, session_id: int, min_price: int = 1000, max_price: int = 10000
     ) -> NoReturn:
         async with self.app.database.session.begin() as session:
-            assets = session.scalars(select(Asset.id))
+            assets = await session.scalars(select(Asset.id))
             assets = assets.all()
             for asset in assets:
                 cur_price = random.randint(min_price, max_price)
@@ -360,3 +360,7 @@ class GameAccessor(BaseAccessor):
                 .where(UserInGame.id == player_id)
                 .values(cur_balance=UserInGame.cur_balance + asset_price)
             )
+
+    async def get_game_by_id(self, game_id: int) -> Game | None:
+        async with self.app.database.session.begin() as session:
+            return await session.scalar(select(Game).where(Game.id == game_id))
