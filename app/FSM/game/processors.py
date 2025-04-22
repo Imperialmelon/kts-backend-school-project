@@ -81,7 +81,7 @@ class GameProcessor:
             players = await app.game_accessor.get_game_active_players(game.id)
             players = [player[0] for player in players]
             winner = max(players, key=lambda p: p.cur_balance)
-            winnder_user = await app.telegram_accessor.get_user_by_custom_id(
+            winnder_user = await app.tg_accessor.get_user_by_custom_id(
                 winner.user_id
             )
             await app.game_accessor.set_winner(winnder_user.id, game.id)
@@ -96,7 +96,7 @@ class GameProcessor:
         players = [player[0] for player in players]
         if len(players) >= 2:
             min_balance_player = min(players, key=lambda p: p.cur_balance)
-            loser = await app.telegram_accessor.get_user_by_custom_id(
+            loser = await app.tg_accessor.get_user_by_custom_id(
                 min_balance_player.user_id
             )
             await app.state_manager.player_fsm.set_state(
@@ -113,7 +113,7 @@ class GameProcessor:
             players = await app.game_accessor.get_game_active_players(game.id)
             players = [player[0] for player in players]
             winner = max(players, key=lambda p: p.cur_balance)
-            winnder_user = await app.telegram_accessor.get_user_by_custom_id(
+            winnder_user = await app.tg_accessor.get_user_by_custom_id(
                 winner.user_id
             )
             await app.game_accessor.set_winner(winnder_user.id, game.id)
@@ -167,19 +167,19 @@ class GameProcessor:
         app: "Application",
     ):
         message_author_telegram_id = callback_query.from_.id
-        user = await app.telegram_accessor.get_user_by_telegram_id(
+        user = await app.tg_accessor.get_user_by_telegram_id(
             telegram_id=message_author_telegram_id
         )
 
         if not user:
-            user = await app.telegram_accessor.create_user_by_tg_id(
+            user = await app.tg_accessor.create_user_by_tg_id(
                 telegram_id=message_author_telegram_id,
                 first_name=callback_query.from_.first_name,
                 last_name=callback_query.from_.last_name,
                 username=callback_query.from_.username,
             )
 
-        await app.telegram_accessor.connect_user_to_chat(
+        await app.tg_accessor.connect_user_to_chat(
             chat.telegram_id, user.telegram_id
         )
 
@@ -224,7 +224,7 @@ class GameProcessor:
         app: "Application",
     ):
         message_author_telegram_id = callback_query.from_.id
-        user = await app.telegram_accessor.get_user_by_telegram_id(
+        user = await app.tg_accessor.get_user_by_telegram_id(
             telegram_id=message_author_telegram_id
         )
         player = await app.game_accessor.get_active_player_by_game_and_user_id(
@@ -240,7 +240,7 @@ class GameProcessor:
             )
 
     @game_message_handler(
-        callback_data_startswith="assets_available_",
+        callback_data_startswith="assets_available:",
         game_state=GameFSM.GameStates.GAME_GOING,
         player_state=PlayerFSM.PlayerStates.GAMING,
     )
@@ -251,7 +251,7 @@ class GameProcessor:
         callback_query: CallbackQuery,
         app: "Application",
     ):
-        session_id = int(callback_query.data.split("_")[2])
+        session_id = int(callback_query.data.split(":")[-1])
         current_session = await app.game_accessor.get_current_game_session(
             current_game.id
         )
@@ -274,7 +274,7 @@ class GameProcessor:
         )
 
     @game_message_handler(
-        callback_data_startswith="assets_my_",
+        callback_data_startswith="assets_my:",
         game_state=GameFSM.GameStates.GAME_GOING,
         player_state=PlayerFSM.PlayerStates.GAMING,
     )
@@ -285,10 +285,10 @@ class GameProcessor:
         callback_query: CallbackQuery,
         app: "Application",
     ):
-        sender = await app.telegram_accessor.get_user_by_telegram_id(
+        sender = await app.tg_accessor.get_user_by_telegram_id(
             callback_query.from_.id
         )
-        user_id = int(callback_query.data.split("_")[2])
+        user_id = int(callback_query.data.split(":")[-1])
         if sender.id != user_id:
             await GameMessenger.not_your_assets_message(app, chat.telegram_id)
 
@@ -318,7 +318,7 @@ class GameProcessor:
         )
 
     @game_message_handler(
-        callback_data_startswith="asset_info_",
+        callback_data_startswith="asset_info:",
         game_state=GameFSM.GameStates.GAME_GOING,
         player_state=PlayerFSM.PlayerStates.GAMING,
     )
@@ -329,8 +329,9 @@ class GameProcessor:
         callback_query: CallbackQuery,
         app: "Application",
     ):
-        asset_id = int(callback_query.data.split("_")[2])
-        session_id = int(callback_query.data.split("_")[3])
+        asset_id, session_id = map(
+            int, (callback_query.data.split(":")[-1].split("-"))
+        )
 
         current_session = await app.game_accessor.get_current_game_session(
             current_game.id
@@ -342,7 +343,7 @@ class GameProcessor:
             return
         asset = await app.game_accessor.get_asset_by_id(asset_id)
         price = await app.game_accessor.get_asset_price(asset_id, session_id)
-        user = await app.telegram_accessor.get_chat_by_telegram_id(
+        user = await app.tg_accessor.get_chat_by_telegram_id(
             callback_query.from_.id
         )
 
@@ -351,7 +352,7 @@ class GameProcessor:
         )
 
     @game_message_handler(
-        callback_data_startswith="buy_asset_",
+        callback_data_startswith="buy_asset:",
         game_state=GameFSM.GameStates.GAME_GOING,
         player_state=PlayerFSM.PlayerStates.GAMING,
     )
@@ -368,8 +369,9 @@ class GameProcessor:
             )
         )
 
-        asset_id = int(callback_query.data.split("_")[2])
-        session_id = int(callback_query.data.split("_")[3])
+        asset_id, session_id = map(
+            int, (callback_query.data.split(":")[-1].split("-"))
+        )
         current_session = await app.game_accessor.get_current_game_session(
             current_game.id
         )
@@ -402,7 +404,7 @@ class GameProcessor:
         )
 
     @game_message_handler(
-        callback_data_startswith="sell_asset_",
+        callback_data_startswith="sell_asset:",
         game_state=GameFSM.GameStates.GAME_GOING,
         player_state=PlayerFSM.PlayerStates.GAMING,
     )
@@ -414,13 +416,15 @@ class GameProcessor:
         app: "Application",
     ) -> None:
         try:
-            alias = app.telegram_accessor.get_user_by_telegram_id
-            user = await alias(callback_query.from_.id)
+            user = await app.tg_accessor.get_user_by_telegram_id(
+                callback_query.from_.id
+            )
             alias = app.game_accessor.get_active_player_by_game_and_user_tg_id
             player = await alias(current_game.id, user.telegram_id)
 
-            asset_id = int(callback_query.data.split("_")[2])
-            session_id = int(callback_query.data.split("_")[3])
+            asset_id, session_id = map(
+                int, (callback_query.data.split(":")[-1].split("-"))
+            )
             asset_price = await app.game_accessor.get_asset_price(
                 asset_id, session_id
             )

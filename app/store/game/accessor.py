@@ -2,6 +2,7 @@ import random
 from typing import Any, NoReturn
 
 from sqlalchemy import Row, Sequence, func, select, update
+from sqlalchemy.orm import selectinload
 
 from app.base.base_accessor import BaseAccessor
 from app.consts import SESSION_LIMIT, START_PLAYER_BALANCE
@@ -181,7 +182,8 @@ class GameAccessor(BaseAccessor):
     ) -> Sequence[tuple[UserInGame, TgUser]]:
         async with self.app.database.session.begin() as session:
             result = await session.execute(
-                select(UserInGame, TgUser)
+                select(UserInGame)
+                .options(selectinload(UserInGame.user))
                 .join(TgUser, UserInGame.user_id == TgUser.id)
                 .where(UserInGame.game_id == game_id)
             )
@@ -292,15 +294,17 @@ class GameAccessor(BaseAccessor):
         self, game_id: int
     ) -> Sequence[tuple[UserInGame, TgUser]]:
         async with self.app.database.session.begin() as session:
-            result = await session.execute(
-                select(UserInGame, TgUser)
+            result = await session.scalars(
+                select(UserInGame)
+                .options(selectinload(UserInGame.user))
                 .join(TgUser, UserInGame.user_id == TgUser.id)
                 .where(
                     (UserInGame.game_id == game_id)
                     & (UserInGame.state == PlayerFSM.PlayerStates.GAMING.value)
                 )
             )
-        return result.all()
+        players = result.all()
+        return [(player, player.user) for player in players]
 
     async def asset_purchase(
         self,

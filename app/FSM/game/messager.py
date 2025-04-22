@@ -21,7 +21,7 @@ class GameMessenger:
     async def send_options_keyboard(
         app: "Application", chat_id: int, player_id: int, session_id: int
     ) -> typing.NoReturn:
-        user = await app.telegram_accessor.get_user_by_custom_id(player_id)
+        user = await app.tg_accessor.get_user_by_custom_id(player_id)
         keyboard = get_options_keyboard(player_id, session_id)
         await app.tg_client.send_message(
             chat_id=chat_id,
@@ -61,7 +61,7 @@ class GameMessenger:
         players_list: str,
         player_associations: Sequence[UserInGame],
         session_num: int,
-    ) -> None:
+    ) -> typing.NoReturn:
         await app.tg_client.send_message(
             chat_id=chat_id,
             text=(
@@ -170,7 +170,7 @@ class GameMessenger:
         session_id: int,
         player_id: int,
     ) -> typing.NoReturn:
-        user = await app.telegram_accessor.get_user_by_custom_id(player_id)
+        user = await app.tg_accessor.get_user_by_custom_id(player_id)
         keyboard = get_player_assets_keyboard(assets, session_id)
 
         await app.tg_client.send_message(
@@ -245,7 +245,7 @@ class GameMessenger:
     @staticmethod
     async def successful_sale_message(
         app: "Application", chat_id: int, asset_title: str, player_name: str
-    ) -> None:
+    ) -> typing.NoReturn:
         await app.tg_client.send_message(
             chat_id=chat_id,
             text=f"Игрок {player_name} продал {asset_title} 🐊",
@@ -263,7 +263,7 @@ class GameMessenger:
     @staticmethod
     async def player_eliminated_message(
         app: "Application", chat_id: int, player_name: str
-    ) -> None:
+    ) -> typing.NoReturn:
         await app.tg_client.send_message(
             chat_id=chat_id,
             text=f"Игрок {player_name} выбывает из игры",
@@ -272,7 +272,7 @@ class GameMessenger:
     @staticmethod
     async def game_over_message(
         app: "Application", chat_id: int, winner_name: str
-    ) -> None:
+    ) -> typing.NoReturn:
         await app.tg_client.send_message(
             chat_id=chat_id,
             text=f"Игра окончена! Победитель: {winner_name} 😎🎉🥳",
@@ -281,7 +281,7 @@ class GameMessenger:
     @staticmethod
     async def session_already_finished_message(
         app: "Application", chat_id: int
-    ) -> None:
+    ) -> typing.NoReturn:
         await app.tg_client.send_message(
             chat_id=chat_id,
             text="Сессия уже завершена",
