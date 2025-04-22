@@ -83,3 +83,11 @@ class TgClient:
         async with self.session.post(url, json=payload) as resp:
             result = await resp.json()
         return result.get("ok", False)
+
+    async def set_commands(self, commands: list[dict[str, str]]):
+        url = self._build_query(TgMethods.SET_COMMANDS)
+
+        payload = {"commands": json.dumps(commands)}
+
+        async with self.session.post(url, data=payload) as response:
+            return await response.json()

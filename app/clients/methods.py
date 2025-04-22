@@ -6,3 +6,4 @@ class TgMethods(StrEnum):
     GET_UPDATES = "getUpdates"
     SEND_MESSAGE = "sendMessage"
     ANSWER_CALLBACK_QUERY = "answerCallbackQuery"
+    SET_COMMANDS = "setMyCommands"

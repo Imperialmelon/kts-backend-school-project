@@ -69,6 +69,7 @@ class ChatProcessor:
         chat_state = await app.state_manager.chat_fsm.get_state_by_tg_id(
             telegram_chat_id=message.chat.id
         )
+        message.text = message.text.split("@")[0].strip()
         for method in cls.__dict__.values():
             if hasattr(method, "_handler_meta"):
                 meta = method._handler_meta
