@@ -299,7 +299,6 @@ class GameProcessor:
 
         if not user_game:
             await GameMessenger.no_player_found_message(app, chat.telegram_id)
-
             return
 
         assets = await app.game_accessor.get_user_assets(user_game.id)
@@ -421,6 +420,8 @@ class GameProcessor:
             )
             alias = app.game_accessor.get_active_player_by_game_and_user_tg_id
             player = await alias(current_game.id, user.telegram_id)
+
+
 
             asset_id, session_id = map(
                 int, (callback_query.data.split(":")[-1].split("-"))
