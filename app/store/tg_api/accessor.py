@@ -19,6 +19,7 @@ class TgApiAccessor(BaseAccessor):
     async def connect(self, app: "Application") -> None:
         self.tg_client = TgClient(self.token)
         await self.tg_client.connect()
+        await self.setup_commands()
         self.offset = 0
         self.poller = Poller(app.store)
         self.logger.info("start polling")
@@ -37,3 +38,11 @@ class TgApiAccessor(BaseAccessor):
         for update in updates.result:
             self.offset = update.update_id + 1
         await self.app.store.bots_manager.handle_updates(updates)
+
+    async def setup_commands(self):
+        commands = [
+            {"command": "/start_game", "description": "Начать новую игру"},
+            {"command": "/stop_game", "description": "Остановить текущую игру"},
+        ]
+
+        return await self.tg_client.set_commands(commands)

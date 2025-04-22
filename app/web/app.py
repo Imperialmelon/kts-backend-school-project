@@ -23,7 +23,7 @@ class Application(AiohttpApplication):
         return self.store.game_accessor
 
     @property
-    def telegram_accessor(self):
+    def tg_accessor(self):
         return self.store.telegram_accessor
 
     @property

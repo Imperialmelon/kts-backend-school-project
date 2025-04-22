@@ -4,6 +4,7 @@ from functools import wraps
 
 from app.FSM.chat.state import ChatFSM
 from app.FSM.game.state import GameFSM
+from app.FSM.player.state import PlayerFSM
 from app.store.tg_api.dataclasses import Message
 
 if typing.TYPE_CHECKING:
@@ -33,7 +34,9 @@ def chat_message_handler(
 
 def game_message_handler(
     callback_data: str | None = None,
+    callback_data_startswith: str | None = None,
     game_state: GameFSM.GameStates | None = None,
+    player_state: PlayerFSM.PlayerStates | None = None,
 ):
     def decorator(func: Callable):
         @wraps(func)
@@ -42,7 +45,9 @@ def game_message_handler(
 
         wrapper._game_handler_meta = {
             "callback_data": callback_data,
+            "callback_data_startswith": callback_data_startswith,
             "game_state": game_state,
+            "player_state": player_state,
         }
         return wrapper
 

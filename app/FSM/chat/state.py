@@ -17,19 +17,15 @@ class ChatFSM:
         self,
         custom_chat_id: int,
     ) -> str:
-        chat = await self.app.store.telegram_accessor.get_chat_by_custom_id(
-            custom_chat_id
-        )
+        chat = await self.app.tg_accessor.get_chat_by_custom_id(custom_chat_id)
 
         return chat.state
 
     async def get_state_by_tg_id(self, telegram_chat_id: int) -> str:
-        chat = await self.app.store.telegram_accessor.get_chat_by_telegram_id(
+        chat = await self.app.tg_accessor.get_chat_by_telegram_id(
             telegram_chat_id
         )
         return chat.state
 
     async def set_state(self, chat_id: int, state: ChatStates):
-        await self.app.store.telegram_accessor.set_chat_state(
-            chat_id=chat_id, state=state
-        )
+        await self.app.tg_accessor.set_chat_state(chat_id=chat_id, state=state)
