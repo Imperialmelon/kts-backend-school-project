@@ -421,8 +421,6 @@ class GameProcessor:
             alias = app.game_accessor.get_active_player_by_game_and_user_tg_id
             player = await alias(current_game.id, user.telegram_id)
 
-
-
             asset_id, session_id = map(
                 int, (callback_query.data.split(":")[-1].split("-"))
             )

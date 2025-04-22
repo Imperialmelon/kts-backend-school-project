@@ -1,10 +1,7 @@
 import random
 from typing import Any, NoReturn
 
-
 from sqlalchemy import Row, Sequence, func, select, update
-
-
 from sqlalchemy.orm import selectinload
 
 from app.base.base_accessor import BaseAccessor
