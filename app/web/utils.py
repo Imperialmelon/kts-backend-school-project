@@ -1,7 +1,11 @@
+import hashlib
+import typing
 from aiohttp.web import json_response as aiohttp_json_response
 from aiohttp.web_response import Response
 
-
+if typing.TYPE_CHECKING:
+    from app.store.admin.dataclasses import Admin
+    from app.web.app import View
 def json_response(data: dict | None = None, status: str = "ok") -> Response:
     return aiohttp_json_response(
         data={
@@ -25,3 +29,12 @@ def error_json_response(
             "data": data or {},
         },
     )
+
+
+def check_admin_credentials(admin: "Admin", password: str) -> bool:
+    if not admin:
+        return False
+    hashed_password = hashlib.sha256(password.encode()).hexdigest()
+    if admin.password != hashed_password:
+        return False
+    return True
