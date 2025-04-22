@@ -44,7 +44,7 @@ async def get_available_stocks_keyboard(
                 "text": f"{asset.title}"
                 f" - "
                 f"{await alias(asset.id, session_id)}",
-                "callback_data": f"buy_asset_{asset.id}_{session_id}",
+                "callback_data": f"buy_asset:{asset.id}-{session_id}",
             }
         ]
         for asset in assets
@@ -57,9 +57,9 @@ def get_options_keyboard(player_id: int, session_id: int) -> dict:
         [
             {
                 "text": "Доступные активы",
-                "callback_data": f"assets_available_{session_id}",
+                "callback_data": f"assets_available:{session_id}",
             },
-            {"text": "Мои активы", "callback_data": f"assets_my_{player_id}"},
+            {"text": "Мои активы", "callback_data": f"assets_my:{player_id}"},
         ]
     ]
     return create_inline_keyboard(buttons)
@@ -72,13 +72,13 @@ def get_player_assets_keyboard(
         [
             {
                 "text": f"{asset.title} - {quantity} шт.",
-                "callback_data": f"asset_info_{asset.id}_{session_id}",
+                "callback_data": f"asset_info:{asset.id}-{session_id}",
             }
         ]
         for asset, quantity in assets
     ]
     buttons.append(
-        [{"text": "⬅️ Назад", "callback_data": f"assets_available_{session_id}"}]
+        [{"text": "⬅️ Назад", "callback_data": f"assets_available:{session_id}"}]
     )
     return create_inline_keyboard(buttons)
 
@@ -88,9 +88,9 @@ def get_selling_keyboard(user_id: int, asset_id: int, session_id: int) -> dict:
         [
             {
                 "text": "💰 Продать",
-                "callback_data": f"sell_asset_{asset_id}_{session_id}",
+                "callback_data": f"sell_asset:{asset_id}-{session_id}",
             },
-            {"text": "⬅️ Назад", "callback_data": f"assets_my_{user_id}"},
+            {"text": "⬅️ Назад", "callback_data": f"assets_my:{user_id}"},
         ]
     ]
     return create_inline_keyboard(buttons)
