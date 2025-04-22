@@ -13,6 +13,12 @@ class BotConfig:
 
 
 @dataclass
+class AdminConfig:
+    email: str
+    password: str
+
+
+@dataclass
 class DatabaseConfig:
     host: str = "localhost"
     port: int = 5429
@@ -23,6 +29,7 @@ class DatabaseConfig:
 
 @dataclass
 class Config:
+    admin: AdminConfig
     bot: BotConfig | None = None
     database: DatabaseConfig | None = None
 
@@ -34,4 +41,5 @@ def setup_config(app: "Application", config_path: str):
     app.config = Config(
         bot=BotConfig(**raw_config["bot"]),
         database=DatabaseConfig(**raw_config["database"]),
+        admin=AdminConfig(**raw_config["admin"]),
     )

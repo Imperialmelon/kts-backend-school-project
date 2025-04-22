@@ -1,5 +1,6 @@
 import typing
 
+from app.store.admin.accessor import AdminAccessor
 from app.store.database.database import Database
 from app.store.game.accessor import GameAccessor
 from app.store.telegam.accessor import TelegramAccessor
@@ -17,6 +18,7 @@ class Store:
         self.bots_manager = BotManager(app)
         self.telegram_accessor = TelegramAccessor(app)
         self.game_accessor = GameAccessor(app)
+        self.admin_accessor = AdminAccessor(app)
 
 
 def setup_store(app: "Application"):
