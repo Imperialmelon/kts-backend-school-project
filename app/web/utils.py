@@ -34,7 +34,5 @@ def error_json_response(
 
 
 def check_admin_credentials(admin: "Admin", password: str) -> bool:
-    if not admin:
-        return False
     hashed_password = hashlib.sha256(password.encode()).hexdigest()
     return admin.password == hashed_password
