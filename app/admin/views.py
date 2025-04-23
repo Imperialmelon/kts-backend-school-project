@@ -84,31 +84,21 @@ class CheckGamesView(View):
 
         for game in games:
             players_data = []
-            players_users = await self.store.game_accessor.get_all_game_players(
-                game.id
-            )
 
-            for player, user in players_users:
+            for player in game.player_associations:
                 player_data = PlayerSchema().dump(
                     {
                         "id": player.id,
                         "state": player.state,
                         "cur_balance": player.cur_balance,
-                        "user": TgUserSchema().dump(user),
+                        "user": TgUserSchema().dump(player.user),
                     }
                 )
                 players_data.append(player_data)
 
-            winner_data = None
-            if game.winner_id:
-                winner = (
-                    await self.store.telegram_accessor.get_user_by_custom_id(
-                        game.winner_id
-                    )
-                )
-                if winner:
-                    winner_data = TgUserSchema().dump(winner)
-
+            winner_data = (
+                TgUserSchema().dump(game.winner) if game.winner else None
+            )
             game_data = GameResponseSchema().dump(
                 {
                     "id": game.id,

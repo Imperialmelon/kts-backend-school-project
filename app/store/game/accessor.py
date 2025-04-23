@@ -2,7 +2,7 @@ import random
 from typing import Any, NoReturn
 
 from sqlalchemy import Row, Sequence, func, select, update
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.base.base_accessor import BaseAccessor
 from app.consts import SESSION_LIMIT, START_PLAYER_BALANCE
@@ -177,17 +177,14 @@ class GameAccessor(BaseAccessor):
 
         return players.all()
 
-    async def get_all_game_players(
-        self, game_id: int
-    ) -> Sequence[tuple[UserInGame, TgUser]]:
+    async def get_all_game_players(self, game_id: int) -> Sequence[UserInGame]:
         async with self.app.database.session.begin() as session:
             result = await session.execute(
                 select(UserInGame)
-                .options(selectinload(UserInGame.user))
-                .join(TgUser, UserInGame.user_id == TgUser.id)
+                .options(joinedload(UserInGame.user))
                 .where(UserInGame.game_id == game_id)
             )
-        return result.all()
+        return result.scalars().all()
 
     async def create_trading_session(
         self, game_id: int, session_num: int
@@ -292,12 +289,11 @@ class GameAccessor(BaseAccessor):
 
     async def get_game_active_players(
         self, game_id: int
-    ) -> Sequence[tuple[UserInGame, TgUser]]:
+    ) -> Sequence[UserInGame]:
         async with self.app.database.session.begin() as session:
             result = await session.scalars(
                 select(UserInGame)
                 .options(selectinload(UserInGame.user))
-                .join(TgUser, UserInGame.user_id == TgUser.id)
                 .where(
                     (UserInGame.game_id == game_id)
                     & (UserInGame.state == PlayerFSM.PlayerStates.GAMING.value)
@@ -382,11 +378,18 @@ class GameAccessor(BaseAccessor):
             return await session.scalar(select(Game).where(Game.id == game_id))
 
     async def get_games_in_chat(self, chat_id: int) -> Sequence[Game] | None:
-        async with self.app.database.session.begin() as session:
+        async with self.app.database.session() as session:
             games = await session.scalars(
-                select(Game).where(Game.chat_id == chat_id)
+                select(Game)
+                .options(
+                    joinedload(Game.winner),
+                    joinedload(Game.player_associations).joinedload(
+                        UserInGame.user
+                    ),
+                )
+                .where(Game.chat_id == chat_id)
             )
-        return games.all()
+            return games.unique().all()
 
     async def set_winner(self, winner_id: int, game_id: int) -> NoReturn:
         async with self.app.database.session.begin() as session:

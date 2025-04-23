@@ -81,13 +81,13 @@ class GameProcessor:
             players = await app.game_accessor.get_game_active_players(game.id)
             players = [player[0] for player in players]
             winner = max(players, key=lambda p: p.cur_balance)
-            winnder_user = await app.tg_accessor.get_user_by_custom_id(
+            winner_user = await app.tg_accessor.get_user_by_custom_id(
                 winner.user_id
             )
-            await app.game_accessor.set_winner(winnder_user.id, game.id)
+            await app.game_accessor.set_winner(winner_user.id, game.id)
 
             await GameMessenger.game_over_message(
-                app, chat.telegram_id, winnder_user.first_name
+                app, chat.telegram_id, winner_user.first_name
             )
             await app.game_accessor.finish_game_in_chat(chat.id)
             return
@@ -113,13 +113,13 @@ class GameProcessor:
             players = await app.game_accessor.get_game_active_players(game.id)
             players = [player[0] for player in players]
             winner = max(players, key=lambda p: p.cur_balance)
-            winnder_user = await app.tg_accessor.get_user_by_custom_id(
+            winner_user = await app.tg_accessor.get_user_by_custom_id(
                 winner.user_id
             )
-            await app.game_accessor.set_winner(winnder_user.id, game.id)
+            await app.game_accessor.set_winner(winner_user.id, game.id)
 
             await GameMessenger.game_over_message(
-                app, chat.telegram_id, winnder_user.first_name
+                app, chat.telegram_id, winner_user.first_name
             )
             await app.game_accessor.finish_game_in_chat(chat.id)
             return
