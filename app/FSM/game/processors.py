@@ -50,6 +50,8 @@ class GameProcessor:
                 for player, user in player_associations
             )
 
+            await GameMessenger.rules_message(app, chat.telegram_id)
+
             await GameMessenger.session_start_informer(
                 app, chat.telegram_id, players_list, player_associations, 1
             )
@@ -81,12 +83,13 @@ class GameProcessor:
             players = await app.game_accessor.get_game_active_players(game.id)
             players = [player[0] for player in players]
             winner = max(players, key=lambda p: p.cur_balance)
-            winnder_user = await app.tg_accessor.get_user_by_custom_id(
+            winner_user = await app.tg_accessor.get_user_by_custom_id(
                 winner.user_id
             )
+            await app.game_accessor.set_winner(winner_user.id, game.id)
 
             await GameMessenger.game_over_message(
-                app, chat.telegram_id, winnder_user.first_name
+                app, chat.telegram_id, winner_user.first_name
             )
             await app.game_accessor.finish_game_in_chat(chat.id)
             return
@@ -107,9 +110,18 @@ class GameProcessor:
             )
 
         active_players = await app.game_accessor.get_game_players(game.id)
+
         if len(active_players) < 2:
-            await GameMessenger.not_enough_players_message(
-                app, chat.telegram_id
+            players = await app.game_accessor.get_game_active_players(game.id)
+            players = [player[0] for player in players]
+            winner = max(players, key=lambda p: p.cur_balance)
+            winner_user = await app.tg_accessor.get_user_by_custom_id(
+                winner.user_id
+            )
+            await app.game_accessor.set_winner(winner_user.id, game.id)
+
+            await GameMessenger.game_over_message(
+                app, chat.telegram_id, winner_user.first_name
             )
             await app.game_accessor.finish_game_in_chat(chat.id)
             return
@@ -357,6 +369,7 @@ class GameProcessor:
                 current_game.id, callback_query.from_.id
             )
         )
+
         asset_id, session_id = map(
             int, (callback_query.data.split(":")[-1].split("-"))
         )
@@ -409,6 +422,7 @@ class GameProcessor:
             )
             alias = app.game_accessor.get_active_player_by_game_and_user_tg_id
             player = await alias(current_game.id, user.telegram_id)
+
             asset_id, session_id = map(
                 int, (callback_query.data.split(":")[-1].split("-"))
             )

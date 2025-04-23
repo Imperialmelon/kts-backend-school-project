@@ -27,6 +27,10 @@ class BotManager:
     def tg_client(self):
         return self.app.store.tg_api.tg_client
 
+    @property
+    def admin_accessor(self):
+        return self.app.store.admin_accessor
+
     async def handle_updates(self, updates: list[UpdateObj]):
         for update in updates.result:
             if update.message is not None:

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase
 
+from app.store.admin.dataclasses import Admin
 from app.store.database.models import BaseModel
 
 if TYPE_CHECKING:
@@ -22,6 +23,7 @@ class Database:
         self.engine: AsyncEngine | None = None
         self._db: type[DeclarativeBase] = BaseModel
         self.session: async_sessionmaker[AsyncSession] | None = None
+        self.admin: Admin | None = None
 
     async def connect(self, *args: Any, **kwargs: Any) -> None:
         self.engine = create_async_engine(

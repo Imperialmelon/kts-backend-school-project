@@ -1,8 +1,8 @@
 import random
-from typing import NoReturn
+from typing import Any, NoReturn
 
-from sqlalchemy import Sequence, func, select, update
-from sqlalchemy.orm import selectinload
+from sqlalchemy import Row, Sequence, func, select, update
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.base.base_accessor import BaseAccessor
 from app.consts import SESSION_LIMIT, START_PLAYER_BALANCE
@@ -177,6 +177,15 @@ class GameAccessor(BaseAccessor):
 
         return players.all()
 
+    async def get_all_game_players(self, game_id: int) -> Sequence[UserInGame]:
+        async with self.app.database.session.begin() as session:
+            result = await session.execute(
+                select(UserInGame)
+                .options(joinedload(UserInGame.user))
+                .where(UserInGame.game_id == game_id)
+            )
+        return result.scalars().all()
+
     async def create_trading_session(
         self, game_id: int, session_num: int
     ) -> TradingSession:
@@ -280,12 +289,11 @@ class GameAccessor(BaseAccessor):
 
     async def get_game_active_players(
         self, game_id: int
-    ) -> Sequence[tuple[UserInGame, TgUser]]:
+    ) -> list[tuple[UserInGame, TgUser]]:
         async with self.app.database.session.begin() as session:
             result = await session.scalars(
                 select(UserInGame)
                 .options(selectinload(UserInGame.user))
-                .join(TgUser, UserInGame.user_id == TgUser.id)
                 .where(
                     (UserInGame.game_id == game_id)
                     & (UserInGame.state == PlayerFSM.PlayerStates.GAMING.value)
@@ -368,3 +376,70 @@ class GameAccessor(BaseAccessor):
     async def get_game_by_id(self, game_id: int) -> Game | None:
         async with self.app.database.session.begin() as session:
             return await session.scalar(select(Game).where(Game.id == game_id))
+
+    async def get_games_in_chat(self, chat_id: int) -> Sequence[Game] | None:
+        async with self.app.database.session() as session:
+            games = await session.scalars(
+                select(Game)
+                .options(
+                    joinedload(Game.winner),
+                    joinedload(Game.player_associations).joinedload(
+                        UserInGame.user
+                    ),
+                )
+                .where(Game.chat_id == chat_id)
+            )
+            return games.unique().all()
+
+    async def set_winner(self, winner_id: int, game_id: int) -> NoReturn:
+        async with self.app.database.session.begin() as session:
+            await session.execute(
+                update(Game)
+                .where(Game.id == game_id)
+                .values(winner_id=winner_id)
+            )
+
+    async def get_top_players(self) -> Sequence[Row[tuple[TgUser, Any, Any]]]:
+        async with self.app.database.session.begin() as session:
+            win_cnt = (
+                select(
+                    Game.winner_id.label("user_id"),
+                    func.count(Game.id).label("win_count"),
+                )
+                .where(Game.winner_id.isnot(None))
+                .group_by(Game.winner_id)
+                .subquery()
+            )
+
+            games_played_cnt = (
+                select(
+                    UserInGame.user_id.label("user_id"),
+                    func.count(UserInGame.game_id).label("games_played_count"),
+                )
+                .group_by(UserInGame.user_id)
+                .subquery()
+            )
+
+            query = (
+                select(
+                    TgUser,
+                    func.coalesce(win_cnt.c.win_count, 0).label("win_cnt"),
+                    func.coalesce(
+                        games_played_cnt.c.games_played_count, 0
+                    ).label("games_played_cnt"),
+                )
+                .outerjoin(win_cnt, TgUser.id == win_cnt.c.user_id)
+                .outerjoin(
+                    games_played_cnt, TgUser.id == games_played_cnt.c.user_id
+                )
+                .order_by(func.coalesce(win_cnt.c.win_count, 0).desc())
+                .limit(10)
+            )
+            res = await session.execute(query)
+        return res.all()
+
+    async def create_asset(self, title: str) -> Asset:
+        async with self.app.database.session.begin() as session:
+            asset = Asset(title=title)
+            session.add(asset)
+        return asset
