@@ -50,6 +50,8 @@ class GameProcessor:
                 for player, user in player_associations
             )
 
+            await GameMessenger.rules_message(app, chat.telegram_id)
+
             await GameMessenger.session_start_informer(
                 app, chat.telegram_id, players_list, player_associations, 1
             )

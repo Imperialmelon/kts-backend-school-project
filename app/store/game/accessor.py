@@ -289,7 +289,7 @@ class GameAccessor(BaseAccessor):
 
     async def get_game_active_players(
         self, game_id: int
-    ) -> Sequence[UserInGame]:
+    ) -> list[tuple[UserInGame, TgUser]]:
         async with self.app.database.session.begin() as session:
             result = await session.scalars(
                 select(UserInGame)
