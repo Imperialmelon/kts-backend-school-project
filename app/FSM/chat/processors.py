@@ -4,6 +4,7 @@ if typing.TYPE_CHECKING:
     from app.web.app import Application
 
 
+from app.consts import PARTICIPATION_CONFIRMATION_TIMER
 from app.FSM.chat.state import ChatFSM
 from app.FSM.game.messager import GameMessenger
 from app.FSM.game.processors import GameProcessor
@@ -28,7 +29,12 @@ class ChatProcessor:
         )
         await GameMessenger.send_participation_keyboard(app, message.chat.id)
 
-        await GameProcessor.set_timer(app, chat, current_game, timeout=10)
+        await GameMessenger.participation_timer_start(
+            app, message.chat.id, PARTICIPATION_CONFIRMATION_TIMER
+        )
+        await GameProcessor.set_timer(
+            app, chat, current_game, timeout=PARTICIPATION_CONFIRMATION_TIMER
+        )
 
     @chat_message_handler(
         text="/start_game", chat_state=ChatFSM.ChatStates.GAME_IS_GOING
@@ -58,6 +64,10 @@ class ChatProcessor:
 
         await GameMessenger.game_killed_message_(app, message.chat.id)
 
+    @chat_message_handler(text="/help")
+    async def handle_help(self, message: Message, app: "Application"):
+        await GameMessenger.rules_message(app, message.chat.id)
+
     @classmethod
     async def process_message(
         cls, message: Message, app: "Application"
@@ -65,7 +75,12 @@ class ChatProcessor:
         chat_state = await app.state_manager.chat_fsm.get_state_by_tg_id(
             telegram_chat_id=message.chat.id
         )
-        message.text = message.text.split("@")[0].strip()
+        if not message:
+            pass
+        try:
+            message.text = message.text.split("@")[0].strip()
+        except AttributeError:
+            pass
         for method in cls.__dict__.values():
             if hasattr(method, "_handler_meta"):
                 meta = method._handler_meta

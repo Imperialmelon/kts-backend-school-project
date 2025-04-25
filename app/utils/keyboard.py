@@ -77,20 +77,16 @@ def get_player_assets_keyboard(
         ]
         for asset, quantity in assets
     ]
-    buttons.append(
-        [{"text": "⬅️ Назад", "callback_data": f"assets_available:{session_id}"}]
-    )
     return create_inline_keyboard(buttons)
 
 
-def get_selling_keyboard(user_id: int, asset_id: int, session_id: int) -> dict:
+def get_selling_keyboard(asset_id: int, session_id: int) -> dict:
     buttons = [
         [
             {
                 "text": "💰 Продать",
                 "callback_data": f"sell_asset:{asset_id}-{session_id}",
             },
-            {"text": "⬅️ Назад", "callback_data": f"assets_my:{user_id}"},
         ]
     ]
     return create_inline_keyboard(buttons)

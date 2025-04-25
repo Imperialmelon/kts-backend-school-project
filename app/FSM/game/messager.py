@@ -65,7 +65,7 @@ class GameMessenger:
         await app.tg_client.send_message(
             chat_id=chat_id,
             text=(
-                f"*Сессия {session_num} начата!*\n\n"
+                f"Сессия {session_num} начата!\n\n"
                 f"Участники и их балансы:\n"
                 f"{players_list}"
             ),
@@ -112,10 +112,10 @@ class GameMessenger:
 
     @staticmethod
     async def successful_participation_message(
-        app: "Application", chat_id: int, player_name: str
+        app: "Application", chat_id: int, player_name: str, callback_query
     ) -> typing.NoReturn:
-        await app.tg_client.send_message(
-            chat_id=chat_id,
+        await app.tg_client.answer_callback_query(
+            callback_query_id=callback_query.id,
             text=f"Пользователь {player_name} подтвердил участие",
         )
 
@@ -169,13 +169,14 @@ class GameMessenger:
         assets: list[tuple[Asset, int]],
         session_id: int,
         player_id: int,
+        balance: int,
     ) -> typing.NoReturn:
         user = await app.tg_accessor.get_user_by_custom_id(player_id)
         keyboard = get_player_assets_keyboard(assets, session_id)
 
         await app.tg_client.send_message(
             chat_id=chat_id,
-            text=f"{user.first_name}, ваши активы:",
+            text=f"{user.first_name}, ваш баланс: {balance} и ваши активы:",
             reply_markup=keyboard,
         )
 
@@ -185,10 +186,9 @@ class GameMessenger:
         chat_id: int,
         asset: Asset,
         session_id: int,
-        user_id: int,
         price: int,
     ) -> typing.NoReturn:
-        keyboard = get_selling_keyboard(user_id, asset.id, session_id)
+        keyboard = get_selling_keyboard(asset.id, session_id)
 
         await app.tg_client.send_message(
             chat_id=chat_id,
@@ -292,37 +292,76 @@ class GameMessenger:
         app: "Application", chat_id: int
     ) -> typing.NoReturn:
         rules_text = """
-    📈 *Правила игры "Биржа"* 📉
+    📈 Правила игры "Биржа" 📉
 
     Вы начинаете игру, где нужно грамотно управлять своими активами.
 
-    🔹 *Основные принципы:*
+    🔹 Основные принципы:
     - Игра состоит из нескольких сессий
     - Каждая сессия длится ограниченное время
     - Во время сессии вы можете:
     • Покупать доступные активы
     • Продавать имеющиеся активы
 
-    💹 *Механика торговли:*
+    💹 Механика торговли:
     - После каждой сессии стоимость активов меняется
     - Ваши активы могут как вырасти, так и упасть в цене
     - Нужно успеть продать активы по выгодной цене!
 
-    🚫 *Выбывание игроков:*
+    🚫 Выбывание игроков:
     - После каждой сессии выбывает игрок с наименьшим балансом
     (стоимость активов не учитывается)
     - Если таких игроков несколько - выбывает случайный выборкой
     - Если остаётся 1 игрок - игра завершается
 
-    🏆 *Определение победителя:*
+    🏆 Определение победителя:
     Игра заканчивается когда:
     1. Остаётся один участник - он побеждает
     2. Превышен лимит сессий - побеждает игрок с максимальным балансом
     (активы не учитываются)
 
-    💰 *Совет:* Следите за изменением цен и вовремя фиксируйте прибыль!
+    💰 Совет: Следите за изменением цен и вовремя фиксируйте прибыль!
     """
         await app.tg_client.send_message(
             chat_id=chat_id,
             text=rules_text,
+        )
+
+    @staticmethod
+    async def participation_timer_start(
+        app: "Application", chat_id: int, timer: int
+    ) -> typing.NoReturn:
+        text = f"Время на подтверждение участия истекает через {timer} секунд:"
+        await app.tg_client.send_message(
+            chat_id=chat_id,
+            text=text,
+        )
+
+    @staticmethod
+    async def session_timer_start(
+        app: "Application", chat_id: int, timer: int
+    ) -> typing.NoReturn:
+        await app.tg_client.send_message(
+            chat_id=chat_id,
+            text=f"Длительность сессии: {timer} секунд",
+        )
+
+    @staticmethod
+    async def session_end_message(
+        app: "Application",
+        chat_id: int,
+        sorted_players: Sequence[UserInGame],
+        session_num: int,
+    ) -> typing.NoReturn:
+        player_list = "\n".join(
+            [
+                f"• {player.user.first_name} : {player.cur_balance:.0f}"
+                for player in sorted_players
+            ]
+        )
+        text = f"Сессия {session_num} завершилась."
+        f"\n\nИгроки и их балансы:\n\n{player_list}"
+        await app.tg_client.send_message(
+            chat_id=chat_id,
+            text=text,
         )

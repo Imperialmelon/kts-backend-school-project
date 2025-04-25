@@ -1,9 +1,10 @@
 import asyncio
 import typing
 
+from app.consts import SESSION_TIMER
 from app.FSM.game.state import GameFSM
 from app.FSM.player.state import PlayerFSM
-from app.handlers.decorators import game_message_handler
+from app.handlers.decorators import chat_message_handler, game_message_handler
 from app.store.database.models import Game, TgChat
 from app.store.tg_api.dataclasses import CallbackQuery, Message
 from app.utils.timer import timer
@@ -46,25 +47,39 @@ class GameProcessor:
             )
 
             players_list = "\n".join(
-                f"• {user.first_name}: {player.cur_balance}"
+                f"• {user.first_name}: {player.cur_balance:.0f}"
                 for player, user in player_associations
             )
-
-            await GameMessenger.rules_message(app, chat.telegram_id)
 
             await GameMessenger.session_start_informer(
                 app, chat.telegram_id, players_list, player_associations, 1
             )
-
-            for player in players:
-                await GameMessenger.send_options_keyboard(
-                    app, chat.telegram_id, player.id, trading_session.id
-                )
+            await GameMessenger.session_timer_start(
+                app, chat.telegram_id, SESSION_TIMER
+            )
 
             await app.game_accessor.connect_assets_to_session(
                 trading_session.id
             )
-            await GameProcessor.set_timer(app, chat, game, timeout=10)
+
+            assets = await app.game_accessor.get_available_assets(
+                trading_session.id
+            )
+
+            if not assets:
+                await GameMessenger.no_available_assets_message(
+                    app, chat.telegram_id
+                )
+
+                return
+
+            await GameMessenger.send_available_stocks_keyboard(
+                app, chat.telegram_id, trading_session.id, assets
+            )
+
+            await GameProcessor.set_timer(
+                app, chat, game, timeout=SESSION_TIMER
+            )
 
     @staticmethod
     async def session_timer_end_handler(
@@ -79,8 +94,14 @@ class GameProcessor:
 
         await app.game_accessor.finish_session(current_session.id)
 
+        players = await app.game_accessor.get_game_active_players(game.id)
+        top_players = [player[0] for player in players]
+        top_players = sorted(top_players, key=lambda p: p.cur_balance)
+        await GameMessenger.session_end_message(
+            app, chat.telegram_id, top_players, current_session.session_num
+        )
+
         if current_session.session_num >= game.session_limit:
-            players = await app.game_accessor.get_game_active_players(game.id)
             players = [player[0] for player in players]
             winner = max(players, key=lambda p: p.cur_balance)
             winner_user = await app.tg_accessor.get_user_by_custom_id(
@@ -94,9 +115,8 @@ class GameProcessor:
             await app.game_accessor.finish_game_in_chat(chat.id)
             return
 
-        players = await app.game_accessor.get_game_active_players(game.id)
         players = [player[0] for player in players]
-        if len(players) >= 2:
+        if len(players) >= 2 and current_session.session_num != 1:
             min_balance_player = min(players, key=lambda p: p.cur_balance)
             loser = await app.tg_accessor.get_user_by_custom_id(
                 min_balance_player.user_id
@@ -138,7 +158,7 @@ class GameProcessor:
         )
 
         players_list = "\n".join(
-            f"• {user.first_name}: {player.cur_balance}"
+            f"• {user.first_name}: {player.cur_balance:.0f}"
             for player, user in player_associations
         )
 
@@ -149,13 +169,17 @@ class GameProcessor:
             player_associations,
             new_session_num,
         )
+        await GameMessenger.session_timer_start(
+            app, chat.telegram_id, SESSION_TIMER
+        )
+        assets = await app.game_accessor.get_available_assets(
+            trading_session.id
+        )
+        await GameMessenger.send_available_stocks_keyboard(
+            app, chat.telegram_id, trading_session.id, assets
+        )
 
-        for player in active_players:
-            await GameMessenger.send_options_keyboard(
-                app, chat.telegram_id, player.id, trading_session.id
-            )
-
-        await GameProcessor.set_timer(app, chat, game, timeout=10)
+        await GameProcessor.set_timer(app, chat, game, timeout=SESSION_TIMER)
 
     @game_message_handler(
         callback_data="confirm",
@@ -211,7 +235,7 @@ class GameProcessor:
                 cur_balance=current_game.start_player_balance,
             )
         await GameMessenger.successful_participation_message(
-            app, chat.telegram_id, user.first_name
+            app, chat.telegram_id, user.first_name, callback_query
         )
 
     @game_message_handler(
@@ -240,6 +264,47 @@ class GameProcessor:
             await GameMessenger.cancel_participation_message(
                 app, chat.telegram_id, user.first_name
             )
+
+    @chat_message_handler(
+        text="/my_assets",
+        game_state=GameFSM.GameStates.GAME_GOING,
+        player_state=PlayerFSM.PlayerStates.GAMING,
+    )
+    async def handle_show_user_assets(
+        self,
+        chat: TgChat,
+        current_game: Game,
+        message: Message,
+        app: "Application",
+    ):
+        sender = await app.tg_accessor.get_user_by_telegram_id(message.from_.id)
+        user_game = await app.game_accessor.get_player_by_game_and_user_id(
+            current_game.id, sender.id
+        )
+        if not user_game:
+            await GameMessenger.no_player_found_message(app, chat.telegram_id)
+            return
+
+        assets = await app.game_accessor.get_user_assets(user_game.id)
+        current_session = await app.game_accessor.get_current_game_session(
+            current_game.id
+        )
+
+        if not assets:
+            await GameMessenger.player_has_no_assets_message(
+                app, chat.telegram_id
+            )
+
+            return
+
+        await GameMessenger.player_assets_message(
+            app,
+            chat.telegram_id,
+            assets,
+            current_session.id,
+            sender.id,
+            user_game.cur_balance,
+        )
 
     @game_message_handler(
         callback_data_startswith="assets_available:",
@@ -276,49 +341,6 @@ class GameProcessor:
         )
 
     @game_message_handler(
-        callback_data_startswith="assets_my:",
-        game_state=GameFSM.GameStates.GAME_GOING,
-        player_state=PlayerFSM.PlayerStates.GAMING,
-    )
-    async def handle_show_user_assets(
-        self,
-        chat: TgChat,
-        current_game: Game,
-        callback_query: CallbackQuery,
-        app: "Application",
-    ):
-        sender = await app.tg_accessor.get_user_by_telegram_id(
-            callback_query.from_.id
-        )
-        user_id = int(callback_query.data.split(":")[-1])
-        if sender.id != user_id:
-            await GameMessenger.not_your_assets_message(app, chat.telegram_id)
-
-            return
-        user_game = await app.game_accessor.get_player_by_game_and_user_id(
-            current_game.id, user_id
-        )
-
-        if not user_game:
-            await GameMessenger.no_player_found_message(app, chat.telegram_id)
-            return
-
-        assets = await app.game_accessor.get_user_assets(user_game.id)
-        current_session = await app.game_accessor.get_current_game_session(
-            current_game.id
-        )
-
-        if not assets:
-            await GameMessenger.player_has_no_assets_message(
-                app, chat.telegram_id
-            )
-
-            return
-        await GameMessenger.player_assets_message(
-            app, chat.telegram_id, assets, current_session.id, sender.id
-        )
-
-    @game_message_handler(
         callback_data_startswith="asset_info:",
         game_state=GameFSM.GameStates.GAME_GOING,
         player_state=PlayerFSM.PlayerStates.GAMING,
@@ -344,12 +366,9 @@ class GameProcessor:
             return
         asset = await app.game_accessor.get_asset_by_id(asset_id)
         price = await app.game_accessor.get_asset_price(asset_id, session_id)
-        user = await app.tg_accessor.get_chat_by_telegram_id(
-            callback_query.from_.id
-        )
 
         await GameMessenger.selling_menu_message(
-            app, chat.telegram_id, asset, session_id, user.id, price
+            app, chat.telegram_id, asset, session_id, price
         )
 
     @game_message_handler(
@@ -369,6 +388,8 @@ class GameProcessor:
                 current_game.id, callback_query.from_.id
             )
         )
+        if not player:
+            return
 
         asset_id, session_id = map(
             int, (callback_query.data.split(":")[-1].split("-"))
@@ -386,9 +407,12 @@ class GameProcessor:
         )
         asset = await app.game_accessor.get_asset_by_id(asset_id)
         if player.cur_balance < asset_price:
-            await GameMessenger.insufficient_funds_message(
-                app, chat.telegram_id, player.id
+            await app.tg_client.answer_callback_query(
+                callback_query.id,
+                text="Недостаточно средств для покупки",
+                show_alert=True,
             )
+
             return
         players_assets = await app.game_accessor.get_user_assets(player.id)
         asset_exists = False
@@ -400,8 +424,10 @@ class GameProcessor:
         await app.game_accessor.asset_purchase(
             player.id, asset_id, asset_price, asset_exists
         )
-        await GameMessenger.successful_purchase_message(
-            app, chat.telegram_id, asset.title, callback_query.from_.first_name
+        await app.tg_client.answer_callback_query(
+            callback_query.id,
+            text=f"Вы приобрели {asset.title} за {asset_price}",
+            show_alert=True,
         )
 
     @game_message_handler(
@@ -475,6 +501,42 @@ class GameProcessor:
             GameProcessor._timers.pop(game_id)
 
     @classmethod
+    async def process_message_non_callbackquery(
+        cls,
+        chat: TgChat,
+        current_game: Game,
+        update: Message,
+        app: "Application",
+    ) -> None:
+        alias = app.game_accessor.get_active_player_by_game_and_user_tg_id
+        sender = await alias(current_game.id, update.from_.id)
+        if sender:
+            for method in cls.__dict__.values():
+                if hasattr(method, "_handler_meta"):
+                    meta = method._handler_meta
+
+                    text_match = (
+                        meta["text"] is None or update.text == meta["text"]
+                    )
+                    game_state_match = (
+                        meta["game_state"] is None
+                        or current_game.state == meta["game_state"]
+                    )
+
+                    state_match = (
+                        meta["text"] is None
+                        or sender.state == meta["player_state"]
+                    )
+
+                    if text_match and state_match and game_state_match:
+                        return await method(
+                            cls(), chat, current_game, update, app
+                        )
+
+            await GameMessenger.unknown_command_message(app, chat.telegram_id)
+        return None
+
+    @classmethod
     async def process_message(
         cls,
         chat: TgChat,
@@ -483,8 +545,9 @@ class GameProcessor:
         app: "Application",
     ) -> None:
         if not isinstance(update, CallbackQuery):
-            await GameMessenger.unknown_command_message(app, chat.telegram_id)
-            return None
+            await cls.process_message_non_callbackquery(
+                chat, current_game, update, app
+            )
 
         message = Message(
             message_id=update.message.message_id,

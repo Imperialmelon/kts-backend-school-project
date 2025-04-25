@@ -15,6 +15,7 @@ def chat_message_handler(
     text: str | None = None,
     chat_state: ChatFSM.ChatStates | None = None,
     game_state: GameFSM.GameStates | None = None,
+    player_state: PlayerFSM.PlayerStates | None = None,
 ):
     def decorator(func: Callable):
         @wraps(func)
@@ -25,6 +26,7 @@ def chat_message_handler(
             "text": text,
             "chat_state": chat_state,
             "game_state": game_state,
+            "player_state": player_state,
         }
 
         return wrapper

@@ -43,6 +43,8 @@ class TgApiAccessor(BaseAccessor):
         commands = [
             {"command": "/start_game", "description": "Начать новую игру"},
             {"command": "/stop_game", "description": "Остановить текущую игру"},
+            {"command": "/help", "description": "Правила игры"},
+            {"command": "/my_assets", "description": "Мои активы"},
         ]
 
         return await self.tg_client.set_commands(commands)
